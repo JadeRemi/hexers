@@ -8,6 +8,9 @@ import { loadImage, SPRITES } from '../assets'
 import { Star, Unit, isPointInButton } from '../utils/canvasDrawUtils'
 import { generateStars } from '../utils/starUtils'
 import { renderFrame, getButtonPositions, PanOffset } from '../utils/canvasRenderUtils'
+import { generateSeed } from '../utils/seedUtils'
+import { generateBoulderPlacements, buildOccupationMap, CellOccupation } from '../utils/unitUtils'
+import { GradientState, updateGradientRotation } from '../utils/animatedBorderUtils'
 import './Canvas.css'
 
 const Canvas: React.FC = () => {
@@ -21,16 +24,19 @@ const Canvas: React.FC = () => {
   const starsRef = useRef<Star[]>([])
   const hexagonsRef = useRef<Hexagon[]>([])
   const hoveredHexRef = useRef<number | null>(null)
-  const wizardImageRef = useRef<HTMLImageElement | null>(null)
-  const unitsRef = useRef<Unit[]>([{ gridRow: 1, gridCol: 1, sprite: 'wizard1' }])
+  const spritesRef = useRef<{ [key: string]: HTMLImageElement }>({})
+  const unitsRef = useRef<Unit[]>([])
+  const occupationRef = useRef<CellOccupation>({})
   const isPanningRef = useRef<boolean>(false)
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const seedRef = useRef<string>(generateSeed())
+  const gradientStateRef = useRef<GradientState>({ rotation: 0, lastUpdate: 0 })
   
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ 
     width: CANVAS_CONFIG.WIDTH, 
     height: CANVAS_CONFIG.HEIGHT 
   })
-  const [currentNoiseType, setCurrentNoiseType] = useState<NoiseType>('perlin')
+  const [currentNoiseType, setCurrentNoiseType] = useState<NoiseType>('simplex')
   const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 })
   
   const gameAreaTop = CANVAS_CONFIG.PANEL_HEIGHT
@@ -61,19 +67,23 @@ const Canvas: React.FC = () => {
         fpsUpdateTimeRef.current = timestamp
       }
 
+      // Update gradient rotation for animated border
+      const gradientRotation = updateGradientRotation(gradientStateRef.current, timestamp)
+
       renderFrame(
         ctx,
         starsRef.current,
         hexagonsRef.current,
         unitsRef.current,
-        wizardImageRef.current,
+        spritesRef.current,
         hoveredHexRef.current,
         currentNoiseType,
         fpsRef.current,
         gameAreaTop,
         gameAreaHeight,
         hexSize,
-        panOffset
+        panOffset,
+        gradientRotation
       )
       
       lastFrameTimeRef.current = timestamp - (deltaTime % frameTime)
@@ -237,11 +247,22 @@ const Canvas: React.FC = () => {
     // Initialize noise cache on startup for better performance
     initializeNoiseCache()
     
+    // Generate stars
     starsRef.current = generateStars()
     
-    loadImage(SPRITES.wizards.wizard1.path).then(img => {
-      wizardImageRef.current = img
+    // Load all sprites
+    Promise.all([
+      loadImage(SPRITES.wizards.wizard1.path).then(img => ({ key: 'wizard1', img })),
+      loadImage(SPRITES.obstacles.boulder.path).then(img => ({ key: 'boulder', img }))
+    ]).then(results => {
+      const sprites: { [key: string]: HTMLImageElement } = {}
+      for (const { key, img } of results) {
+        sprites[key] = img
+      }
+      spritesRef.current = sprites
     })
+    
+    console.log(`Session seed: ${seedRef.current}`)
   }, [])
   
   useEffect(() => {
@@ -251,6 +272,27 @@ const Canvas: React.FC = () => {
       CANVAS_CONFIG.WIDTH,
       gameAreaHeight
     )
+    
+    // Generate units
+    const units: Unit[] = []
+    
+    // Add wizard at 1,1
+    units.push({
+      type: 'wizard',
+      gridRow: 1,
+      gridCol: 1,
+      sprite: 'wizard1'
+    })
+    
+    // Generate boulders using seed
+    const boulders = generateBoulderPlacements(hexagonsRef.current, seedRef.current, 0.1)
+    
+    // Filter out boulders that would overlap with wizard
+    const filteredBoulders = boulders.filter(b => !(b.gridRow === 1 && b.gridCol === 1))
+    units.push(...filteredBoulders)
+    
+    unitsRef.current = units
+    occupationRef.current = buildOccupationMap(units)
   }, [gameAreaHeight])
   
   useEffect(() => {

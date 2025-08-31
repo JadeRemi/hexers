@@ -43,12 +43,22 @@ This file serves as both the rules and memory for the Claude assistant working o
 - Hexagons serve as cells for playable immobile units
 - Canvas background: starry space (pitch black with rare pixel stars)
 - No animation for background stars
-- Hover effects: cursor:pointer and dark purple border on hexagon hover
+- Hover effects: cursor:pointer and animated gradient border on hexagon hover
+- Session-based seed system for procedural generation
+- Background stays fixed while hexagon field can be panned
 
 ## Hexagon Rendering
 - Cell and border pixelization should maintain performance
 - Prioritize 60 FPS over visual detail
 - Use efficient rendering algorithms
+- Animated gradient borders for hovered cells
+
+## Seed System
+- Session seed is generated on page load as hexadecimal string
+- Seed refreshes on page reload
+- Used for procedural placement of game elements (boulders, etc.)
+- Ensures consistent placement within a session
+- Will be used for future mechanics requiring deterministic randomness
 
 ## Performance Guidelines
 - TARGET_FPS config constant controls frame rate cap

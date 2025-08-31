@@ -8,7 +8,8 @@ export const CANVAS_CONFIG = {
 export const HEXAGON_CONFIG = {
   ROWS: 10,
   BORDER_WIDTH: 8,
-  CELL_GAP: 12
+  CELL_GAP: 12,
+  GRADIENT_ROTATION_SPEED: 0.002 // radians per millisecond (doubled from 0.001)
 } as const
 
 export const STARS_CONFIG = {

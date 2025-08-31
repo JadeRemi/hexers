@@ -4,6 +4,7 @@ import { NoiseType } from './textureUtils'
 import { Hexagon, createHexagonPath, isPointInHexagon, calculateHexSize } from './hexagonUtils'
 import { renderHexagonTexture } from './textureUtils'
 import { drawPixelatedHexagonBorder } from './borderUtils'
+import { drawAnimatedHexagonBorder } from './animatedBorderUtils'
 import { getTerrainForHexagon } from './terrainUtils'
 import { drawButton, drawStars, drawUnits } from './canvasDrawUtils'
 import { Star, Unit } from './canvasDrawUtils'
@@ -78,7 +79,8 @@ export const drawHexagons = (
   currentNoiseType: NoiseType,
   gameAreaTop: number,
   hexSize: number,
-  panOffset: PanOffset
+  panOffset: PanOffset,
+  gradientRotation: number
 ): void => {
   ctx.save()
   ctx.translate(panOffset.x, panOffset.y)
@@ -96,11 +98,12 @@ export const drawHexagons = (
     
     ctx.restore()
     
-    // Draw pixelated border
-    const borderColor = i === hoveredHexIndex 
-      ? palette.hexagon.borderHover
-      : palette.hexagon.borderDefault
-    drawPixelatedHexagonBorder(ctx, hex.x, hex.y + gameAreaTop, hexSize, borderColor)
+    // Draw border - animated for hovered, static for others
+    if (i === hoveredHexIndex) {
+      drawAnimatedHexagonBorder(ctx, hex.x, hex.y + gameAreaTop, hexSize, gradientRotation)
+    } else {
+      drawPixelatedHexagonBorder(ctx, hex.x, hex.y + gameAreaTop, hexSize, palette.hexagon.borderDefault)
+    }
     
     ctx.fillStyle = palette.hexagon.text
     ctx.font = typography.fontSize.sm
@@ -117,14 +120,15 @@ export const renderFrame = (
   stars: Star[],
   hexagons: Hexagon[],
   units: Unit[],
-  wizardImage: HTMLImageElement | null,
+  sprites: { [key: string]: HTMLImageElement },
   hoveredHexIndex: number | null,
   currentNoiseType: NoiseType,
   fps: number,
   gameAreaTop: number,
   gameAreaHeight: number,
   hexSize: number,
-  panOffset: PanOffset
+  panOffset: PanOffset,
+  gradientRotation: number
 ): void => {
   ctx.imageSmoothingEnabled = false
   
@@ -138,11 +142,8 @@ export const renderFrame = (
   ctx.rect(0, gameAreaTop, CANVAS_CONFIG.WIDTH, gameAreaHeight)
   ctx.clip()
   
-  // Apply pan offset for stars
-  ctx.save()
-  ctx.translate(panOffset.x, panOffset.y)
+  // Draw stars without pan offset (fixed background)
   drawStars(ctx, stars)
-  ctx.restore()
   
   ctx.restore()
   
@@ -152,7 +153,7 @@ export const renderFrame = (
   ctx.rect(0, gameAreaTop, CANVAS_CONFIG.WIDTH, gameAreaHeight)
   ctx.clip()
   
-  drawHexagons(ctx, hexagons, hoveredHexIndex, currentNoiseType, gameAreaTop, hexSize, panOffset)
+  drawHexagons(ctx, hexagons, hoveredHexIndex, currentNoiseType, gameAreaTop, hexSize, panOffset, gradientRotation)
   
   // Draw units with adjusted position and pan offset
   ctx.save()
@@ -161,7 +162,7 @@ export const renderFrame = (
     ...hex,
     y: hex.y + gameAreaTop
   }))
-  drawUnits(ctx, units, adjustedHexagons, wizardImage, hexSize)
+  drawUnits(ctx, units, adjustedHexagons, sprites, hexSize)
   ctx.restore()
   
   ctx.restore()

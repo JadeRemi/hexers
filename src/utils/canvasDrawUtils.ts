@@ -10,6 +10,7 @@ export interface Star {
 }
 
 export interface Unit {
+  type: 'wizard' | 'boulder'
   gridRow: number
   gridCol: number
   sprite: string
@@ -28,31 +29,46 @@ export const drawUnits = (
   ctx: CanvasRenderingContext2D,
   units: Unit[],
   hexagons: Hexagon[],
-  wizardImage: HTMLImageElement | null,
+  sprites: { [key: string]: HTMLImageElement },
   hexSize: number
 ): void => {
-  if (!wizardImage) return
-  
   for (const unit of units) {
     const hex = hexagons.find(h => 
       h.gridRow === unit.gridRow && h.gridCol === unit.gridCol
     )
     
     if (hex) {
-      const hexWidth = Math.sqrt(3) * hexSize
-      const spriteWidth = hexWidth * SPRITE_CONFIG.UNIT_SCALE
-      const spriteHeight = (spriteWidth / SPRITES.wizards.wizard1.width) * SPRITES.wizards.wizard1.height
+      let image: HTMLImageElement | undefined
+      let sourceWidth: number
+      let sourceHeight: number
       
-      const x = hex.x - spriteWidth / 2
-      const y = hex.y - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
+      if (unit.type === 'wizard') {
+        image = sprites['wizard1']
+        sourceWidth = SPRITES.wizards.wizard1.width
+        sourceHeight = SPRITES.wizards.wizard1.height
+      } else if (unit.type === 'boulder') {
+        image = sprites['boulder']
+        sourceWidth = SPRITES.obstacles.boulder.width
+        sourceHeight = SPRITES.obstacles.boulder.height
+      }
       
-      ctx.drawImage(
-        wizardImage,
-        x,
-        y,
-        spriteWidth,
-        spriteHeight
-      )
+      if (image) {
+        const hexWidth = Math.sqrt(3) * hexSize
+        const spriteWidth = hexWidth * SPRITE_CONFIG.UNIT_SCALE
+        const spriteHeight = (spriteWidth / sourceWidth) * sourceHeight
+        
+        // Position sprite so its bottom center is at the cell center
+        const x = hex.x - spriteWidth / 2
+        const y = hex.y - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
+        
+        ctx.drawImage(
+          image,
+          x,
+          y,
+          spriteWidth,
+          spriteHeight
+        )
+      }
     }
   }
 }

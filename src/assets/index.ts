@@ -25,6 +25,13 @@ export const SPRITES = {
       width: 192,
       height: 192
     }
+  },
+  obstacles: {
+    boulder: {
+      path: '/assets/boulder.png',
+      width: 128,
+      height: 128
+    }
   }
 } as const
 
