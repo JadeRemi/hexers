@@ -24,22 +24,9 @@ export const createHexagonPath = (centerX: number, centerY: number, size: number
   return path
 }
 
-export const calculateHexSize = (
-  rows: number,
-  gap: number,
-  canvasWidth: number,
-  canvasHeight: number
-): number => {
-  const verticalSpace = canvasHeight - gap * 2
-  const hexHeightNeeded = verticalSpace / (rows * 0.75 + 0.25)
-  const hexSizeFromHeight = hexHeightNeeded / 2
-  
-  const horizontalSpace = canvasWidth - gap * 2
-  const estimatedCols = Math.floor(horizontalSpace / (Math.sqrt(3) * hexSizeFromHeight))
-  const hexWidthNeeded = horizontalSpace / estimatedCols
-  const hexSizeFromWidth = hexWidthNeeded / Math.sqrt(3)
-  
-  return Math.min(hexSizeFromHeight, hexSizeFromWidth) * 0.9
+export const calculateHexSize = (): number => {
+  // Fixed hex size for infinite field with gaps
+  return 35
 }
 
 export const generateHexGrid = (

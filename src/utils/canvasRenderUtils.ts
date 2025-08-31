@@ -2,12 +2,14 @@ import { CANVAS_CONFIG, HEXAGON_CONFIG, UI_ICONS } from '../config/constants'
 import { palette, typography } from '../theme'
 import { NoiseType } from './textureUtils'
 import { Hexagon, createHexagonPath, isPointInHexagon, calculateHexSize } from './hexagonUtils'
+import { Chunk } from './chunkUtils'
 import { renderHexagonTexture } from './textureUtils'
 import { drawPixelatedHexagonBorder } from './borderUtils'
 import { drawAnimatedHexagonBorder } from './animatedBorderUtils'
 import { getTerrainForHexagon } from './terrainUtils'
 import { drawButton, drawStars, drawUnits } from './canvasDrawUtils'
 import { Star, Unit } from './canvasDrawUtils'
+import { renderChunkToCanvas, getChunkBounds } from './chunkCacheUtils'
 
 export interface PanOffset {
   x: number
@@ -72,9 +74,9 @@ export const drawTopPanelControls = (
   })
 }
 
-export const drawHexagons = (
+export const drawChunks = (
   ctx: CanvasRenderingContext2D,
-  hexagons: Hexagon[],
+  chunks: Map<string, Chunk>,
   hoveredHexIndex: number | null,
   currentNoiseType: NoiseType,
   gameAreaTop: number,
@@ -85,31 +87,35 @@ export const drawHexagons = (
   ctx.save()
   ctx.translate(panOffset.x, panOffset.y)
   
-  for (let i = 0; i < hexagons.length; i++) {
-    const hex = hexagons[i]
-    const path = createHexagonPath(hex.x, hex.y + gameAreaTop, hexSize)
+  let globalHexIndex = 0
+  
+  for (const chunk of chunks.values()) {
+    // Render cached chunk texture
+    const chunkCanvas = renderChunkToCanvas(chunk, hexSize, currentNoiseType)
+    const { minX, minY } = getChunkBounds(chunk, hexSize)
     
-    ctx.save()
-    ctx.clip(path)
+    ctx.drawImage(chunkCanvas, minX, minY + gameAreaTop)
     
-    const terrainType = getTerrainForHexagon(hex.gridRow, hex.gridCol)
-    
-    renderHexagonTexture(ctx, hex.x, hex.y + gameAreaTop, hexSize, currentNoiseType, terrainType)
-    
-    ctx.restore()
-    
-    // Draw border - animated for hovered, static for others
-    if (i === hoveredHexIndex) {
-      drawAnimatedHexagonBorder(ctx, hex.x, hex.y + gameAreaTop, hexSize, gradientRotation)
-    } else {
-      drawPixelatedHexagonBorder(ctx, hex.x, hex.y + gameAreaTop, hexSize, palette.hexagon.borderDefault)
+    // Draw borders and text for hexagons in this chunk
+    for (const hex of chunk.hexagons) {
+      const hexY = hex.y + gameAreaTop
+      
+      // Draw border - animated for hovered, static for others
+      if (globalHexIndex === hoveredHexIndex) {
+        drawAnimatedHexagonBorder(ctx, hex.x, hexY, hexSize, gradientRotation)
+      } else {
+        drawPixelatedHexagonBorder(ctx, hex.x, hexY, hexSize, palette.hexagon.borderDefault)
+      }
+      
+      // Draw text
+      ctx.fillStyle = palette.hexagon.text
+      ctx.font = typography.fontSize.sm
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(`${hex.gridRow},${hex.gridCol}`, hex.x, hexY)
+      
+      globalHexIndex++
     }
-    
-    ctx.fillStyle = palette.hexagon.text
-    ctx.font = typography.fontSize.sm
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(`${hex.gridRow},${hex.gridCol}`, hex.x, hex.y + gameAreaTop)
   }
   
   ctx.restore()
@@ -118,7 +124,7 @@ export const drawHexagons = (
 export const renderFrame = (
   ctx: CanvasRenderingContext2D,
   stars: Star[],
-  hexagons: Hexagon[],
+  chunks: Map<string, Chunk>,
   units: Unit[],
   sprites: { [key: string]: HTMLImageElement },
   hoveredHexIndex: number | null,
@@ -147,21 +153,29 @@ export const renderFrame = (
   
   ctx.restore()
   
-  // Draw hexagons with pan offset
+  // Draw chunks with pan offset
   ctx.save()
   ctx.beginPath()
   ctx.rect(0, gameAreaTop, CANVAS_CONFIG.WIDTH, gameAreaHeight)
   ctx.clip()
   
-  drawHexagons(ctx, hexagons, hoveredHexIndex, currentNoiseType, gameAreaTop, hexSize, panOffset, gradientRotation)
+  drawChunks(ctx, chunks, hoveredHexIndex, currentNoiseType, gameAreaTop, hexSize, panOffset, gradientRotation)
   
   // Draw units with adjusted position and pan offset
   ctx.save()
   ctx.translate(panOffset.x, panOffset.y)
-  const adjustedHexagons = hexagons.map(hex => ({
+  
+  // Collect all hexagons for units
+  const allHexagons: Hexagon[] = []
+  for (const chunk of chunks.values()) {
+    allHexagons.push(...chunk.hexagons)
+  }
+  
+  const adjustedHexagons = allHexagons.map(hex => ({
     ...hex,
     y: hex.y + gameAreaTop
   }))
+  
   drawUnits(ctx, units, adjustedHexagons, sprites, hexSize)
   ctx.restore()
   

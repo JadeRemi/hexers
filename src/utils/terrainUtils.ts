@@ -1,12 +1,16 @@
 import { TerrainType } from '../config/constants'
+import { getBiomeTerrainType } from './biomeUtils'
 
 export const ALL_TERRAIN_TYPES: TerrainType[] = ['sand', 'grass', 'dirt', 'water', 'snow']
 
+let currentSeed: string = ''
+
+export const setTerrainSeed = (seed: string): void => {
+  currentSeed = seed
+}
+
 export const getTerrainForHexagon = (gridRow: number, gridCol: number): TerrainType => {
-  // Simple distribution based on grid position
-  // This can be made more sophisticated later
-  const index = Math.abs(gridRow + gridCol) % ALL_TERRAIN_TYPES.length
-  return ALL_TERRAIN_TYPES[index]
+  return getBiomeTerrainType(gridRow, gridCol, currentSeed)
 }
 
 export const getTerrainDistribution = (): Map<TerrainType, number> => {

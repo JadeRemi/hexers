@@ -1,6 +1,5 @@
 import { perlinNoise, simplexNoise, voronoiNoise, generateVoronoiPoints } from './noiseUtils'
 import { TEXTURE_CONFIG, TERRAIN_TYPES, TerrainType } from '../config/constants'
-import { getCachedNoiseValue } from './noiseCacheUtils'
 
 export type NoiseType = 'perlin' | 'simplex' | 'voronoi'
 
@@ -48,12 +47,36 @@ export const pixelateCoordinate = (coord: number, pixelSize: number): number => 
   return Math.floor(coord / pixelSize) * pixelSize
 }
 
+// Simple cache for recently used noise values
+const noiseCache = new Map<string, number>()
+const MAX_CACHE_SIZE = 10000
+
 export const getPixelatedNoiseValue = (x: number, y: number, noiseType: NoiseType): number => {
-  return getCachedNoiseValue(x, y, noiseType)
+  const pixelSize = TEXTURE_CONFIG.PIXELATION_SIZE
+  const pixelX = pixelateCoordinate(x, pixelSize)
+  const pixelY = pixelateCoordinate(y, pixelSize)
+  
+  const cacheKey = `${noiseType}-${pixelX}-${pixelY}`
+  
+  if (noiseCache.has(cacheKey)) {
+    return noiseCache.get(cacheKey)!
+  }
+  
+  const noiseValue = getRawNoiseValue(pixelX, pixelY, noiseType)
+  
+  // Limit cache size
+  if (noiseCache.size > MAX_CACHE_SIZE) {
+    // Clear oldest entries
+    const keysToDelete = Array.from(noiseCache.keys()).slice(0, 1000)
+    keysToDelete.forEach(key => noiseCache.delete(key))
+  }
+  
+  noiseCache.set(cacheKey, noiseValue)
+  return noiseValue
 }
 
 export const clearNoiseCache = (): void => {
-  // Noise cache is now managed by noiseCacheUtils
+  noiseCache.clear()
 }
 
 /**

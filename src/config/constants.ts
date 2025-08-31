@@ -6,10 +6,19 @@ export const CANVAS_CONFIG = {
 } as const
 
 export const HEXAGON_CONFIG = {
-  ROWS: 10,
   BORDER_WIDTH: 8,
   CELL_GAP: 12,
   GRADIENT_ROTATION_SPEED: 0.002 // radians per millisecond (doubled from 0.001)
+} as const
+
+export const CHUNK_CONFIG = {
+  SIZE: 16, // 16x16 cells per chunk
+  LOAD_DISTANCE: 1 // Load chunks within 1 chunk of viewport
+} as const
+
+export const BIOME_CONFIG = {
+  SCALE: 0.08, // Controls biome size (smaller = larger biomes)
+  BLEND_ZONE: 0.15 // Transition zone between biomes
 } as const
 
 export const STARS_CONFIG = {

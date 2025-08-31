@@ -1,16 +1,18 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { calculateCanvasSize } from '../utils/canvasUtils'
-import { generateHexGrid, isPointInHexagon, calculateHexSize, Hexagon } from '../utils/hexagonUtils'
+import { isPointInHexagon, calculateHexSize } from '../utils/hexagonUtils'
+import { getVisibleChunks, updateLoadedChunks, Chunk } from '../utils/chunkUtils'
 import { NoiseType } from '../utils/textureUtils'
-import { CANVAS_CONFIG, HEXAGON_CONFIG } from '../config/constants'
-import { initializeNoiseCache } from '../utils/noiseCacheUtils'
+import { CANVAS_CONFIG } from '../config/constants'
 import { loadImage, SPRITES } from '../assets'
 import { Star, Unit, isPointInButton } from '../utils/canvasDrawUtils'
 import { generateStars } from '../utils/starUtils'
 import { renderFrame, getButtonPositions, PanOffset } from '../utils/canvasRenderUtils'
 import { generateSeed } from '../utils/seedUtils'
 import { generateBoulderPlacements, buildOccupationMap, CellOccupation } from '../utils/unitUtils'
+import { setTerrainSeed } from '../utils/terrainUtils'
 import { GradientState, updateGradientRotation } from '../utils/animatedBorderUtils'
+import { clearChunkCache } from '../utils/chunkCacheUtils'
 import './Canvas.css'
 
 const Canvas: React.FC = () => {
@@ -22,7 +24,7 @@ const Canvas: React.FC = () => {
   const frameCountRef = useRef<number>(0)
   const fpsUpdateTimeRef = useRef<number>(0)
   const starsRef = useRef<Star[]>([])
-  const hexagonsRef = useRef<Hexagon[]>([])
+  const chunksRef = useRef<Map<string, Chunk>>(new Map())
   const hoveredHexRef = useRef<number | null>(null)
   const spritesRef = useRef<{ [key: string]: HTMLImageElement }>({})
   const unitsRef = useRef<Unit[]>([])
@@ -41,12 +43,7 @@ const Canvas: React.FC = () => {
   
   const gameAreaTop = CANVAS_CONFIG.PANEL_HEIGHT
   const gameAreaHeight = CANVAS_CONFIG.HEIGHT - (CANVAS_CONFIG.PANEL_HEIGHT * 2)
-  const hexSize = calculateHexSize(
-    HEXAGON_CONFIG.ROWS,
-    HEXAGON_CONFIG.CELL_GAP,
-    CANVAS_CONFIG.WIDTH,
-    gameAreaHeight
-  )
+  const hexSize = calculateHexSize()
 
   const render = useCallback((timestamp: number) => {
     const canvas = canvasRef.current
@@ -73,7 +70,7 @@ const Canvas: React.FC = () => {
       renderFrame(
         ctx,
         starsRef.current,
-        hexagonsRef.current,
+        chunksRef.current,
         unitsRef.current,
         spritesRef.current,
         hoveredHexRef.current,
@@ -124,6 +121,7 @@ const Canvas: React.FC = () => {
       const noiseTypes: NoiseType[] = ['perlin', 'simplex', 'voronoi']
       const currentIndex = noiseTypes.indexOf(currentNoiseType)
       const nextIndex = (currentIndex + 1) % noiseTypes.length
+      clearChunkCache() // Clear cached chunks when noise type changes
       setCurrentNoiseType(noiseTypes[nextIndex])
       return
     }
@@ -171,14 +169,18 @@ const Canvas: React.FC = () => {
     if (y > gameAreaTop && y < CANVAS_CONFIG.HEIGHT - CANVAS_CONFIG.PANEL_HEIGHT) {
       // Check for hexagon hover with pan offset
       let foundHex = false
-      for (let i = 0; i < hexagonsRef.current.length; i++) {
-        const hex = hexagonsRef.current[i]
-        if (isPointInHexagon(x - panOffset.x, y - gameAreaTop - panOffset.y, hex.x, hex.y, hexSize)) {
-          hoveredHexRef.current = i
-          foundHex = true
-          canvas.style.cursor = 'pointer'
-          break
+      let hexIndex = 0
+      for (const chunk of chunksRef.current.values()) {
+        for (const hex of chunk.hexagons) {
+          if (isPointInHexagon(x - panOffset.x, y - gameAreaTop - panOffset.y, hex.x, hex.y, hexSize)) {
+            hoveredHexRef.current = hexIndex
+            foundHex = true
+            canvas.style.cursor = 'pointer'
+            break
+          }
+          hexIndex++
         }
+        if (foundHex) break
       }
 
       if (!foundHex) {
@@ -244,8 +246,8 @@ const Canvas: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    // Initialize noise cache on startup for better performance
-    initializeNoiseCache()
+    // Set terrain seed
+    setTerrainSeed(seedRef.current)
     
     // Generate stars
     starsRef.current = generateStars()
@@ -265,35 +267,38 @@ const Canvas: React.FC = () => {
     console.log(`Session seed: ${seedRef.current}`)
   }, [])
   
+  // Initialize chunks on mount
   useEffect(() => {
-    hexagonsRef.current = generateHexGrid(
-      HEXAGON_CONFIG.ROWS,
-      HEXAGON_CONFIG.CELL_GAP,
-      CANVAS_CONFIG.WIDTH,
-      gameAreaHeight
-    )
-    
-    // Generate units
-    const units: Unit[] = []
-    
-    // Add wizard at 1,1
-    units.push({
+    const visibleChunks = getVisibleChunks(0, 0, hexSize, gameAreaHeight)
+    chunksRef.current = updateLoadedChunks(new Map(), visibleChunks, hexSize)
+  }, [hexSize, gameAreaHeight])
+  
+  // Initialize wizard unit once
+  useEffect(() => {
+    unitsRef.current = [{
       type: 'wizard',
-      gridRow: 1,
-      gridCol: 1,
+      gridRow: 0,
+      gridCol: 0,
       sprite: 'wizard1'
-    })
+    }]
+    occupationRef.current = buildOccupationMap(unitsRef.current)
+  }, [])
+  
+  // Update chunks only when pan changes significantly
+  useEffect(() => {
+    const updateTimer = setTimeout(() => {
+      const visibleChunks = getVisibleChunks(panOffset.x, panOffset.y, hexSize, gameAreaHeight)
+      const newChunks = updateLoadedChunks(chunksRef.current, visibleChunks, hexSize)
+      
+      // Only update if chunks actually changed
+      if (newChunks.size !== chunksRef.current.size || 
+          ![...newChunks.keys()].every(key => chunksRef.current.has(key))) {
+        chunksRef.current = newChunks
+      }
+    }, 200) // Throttle to 200ms
     
-    // Generate boulders using seed
-    const boulders = generateBoulderPlacements(hexagonsRef.current, seedRef.current, 0.1)
-    
-    // Filter out boulders that would overlap with wizard
-    const filteredBoulders = boulders.filter(b => !(b.gridRow === 1 && b.gridCol === 1))
-    units.push(...filteredBoulders)
-    
-    unitsRef.current = units
-    occupationRef.current = buildOccupationMap(units)
-  }, [gameAreaHeight])
+    return () => clearTimeout(updateTimer)
+  }, [panOffset.x, panOffset.y, hexSize, gameAreaHeight])
   
   useEffect(() => {
     animationFrameRef.current = requestAnimationFrame(render)
