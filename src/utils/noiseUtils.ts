@@ -1,3 +1,8 @@
+/**
+ * Raw Perlin noise function - DO NOT MODIFY
+ * All transformations should be done through middleware functions
+ * Returns values between -1 and 1
+ */
 export const perlinNoise = (() => {
   const permutation = Array.from({ length: 256 }, (_, i) => i)
   for (let i = 255; i > 0; i--) {
@@ -36,6 +41,11 @@ export const perlinNoise = (() => {
   }
 })()
 
+/**
+ * Raw Simplex noise function - DO NOT MODIFY
+ * All transformations should be done through middleware functions
+ * Returns values between -1 and 1
+ */
 export const simplexNoise = (() => {
   const grad3 = [
     [1, 1, 0], [-1, 1, 0], [1, -1, 0], [-1, -1, 0],
@@ -92,6 +102,11 @@ export const simplexNoise = (() => {
   }
 })()
 
+/**
+ * Raw Voronoi noise function - DO NOT MODIFY
+ * All transformations should be done through middleware functions
+ * Returns distance to nearest point
+ */
 export const voronoiNoise = (x: number, y: number, points: Array<[number, number]>): number => {
   let minDist = Infinity
   let secondMinDist = Infinity

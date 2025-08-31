@@ -21,7 +21,10 @@ export const STARS_CONFIG = {
 export const TEXTURE_CONFIG = {
   PIXELATION_SIZE: 8,
   NOISE_SCALE: 0.05,
-  NOISE_ZOOM: 0.03
+  NOISE_ZOOM: 0.03,
+  VORONOI_ZOOM_MULTIPLIER: 0.3, // Makes voronoi more zoomed out (smaller value = more zoomed out)
+  NOISE_CONTRAST: 1.5, // Increases contrast (higher = more contrast)
+  SATURATION_EFFECT: 0.3 // How much noise affects saturation (0-1)
 } as const
 
 export const TERRAIN_TYPES = {

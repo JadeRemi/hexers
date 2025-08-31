@@ -53,6 +53,13 @@ This file serves as both the rules and memory for the Claude assistant working o
 - Use efficient rendering algorithms
 - Animated gradient borders for hovered cells
 
+## Noise System
+- Raw noise functions (perlin, simplex, voronoi) must NEVER be modified directly
+- All transformations must be done through middleware functions
+- Noise affects both darkness (stronger) and saturation (weaker) of cell textures
+- Voronoi noise uses additional zoom multiplier for different scale
+- Contrast enhancement is applied as middleware to make noise less smooth
+
 ## Seed System
 - Session seed is generated on page load as hexadecimal string
 - Seed refreshes on page reload
