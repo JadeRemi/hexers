@@ -53,36 +53,30 @@ export const pixelateCoordinate = (coord: number, pixelSize: number): number => 
   return Math.floor(coord / pixelSize) * pixelSize
 }
 
-// Simple cache for recently used noise values
-const noiseCache = new Map<string, number>()
-const MAX_CACHE_SIZE = 10000
+// Simple cache for hexagon-level noise (much less memory than pixel-level)
+const hexNoiseCache = new Map<string, number>()
 
 export const getPixelatedNoiseValue = (x: number, y: number, noiseType: NoiseType): number => {
-  const pixelSize = TEXTURE_CONFIG.PIXELATION_SIZE
-  const pixelX = pixelateCoordinate(x, pixelSize)
-  const pixelY = pixelateCoordinate(y, pixelSize)
+  // Round to hexagon-sized chunks to reduce cache size dramatically
+  const chunkSize = 100 // Much larger chunks than pixels
+  const chunkX = Math.floor(x / chunkSize) * chunkSize
+  const chunkY = Math.floor(y / chunkSize) * chunkSize
   
-  const cacheKey = `${noiseType}-${pixelX}-${pixelY}`
+  const cacheKey = `${noiseType}-${chunkX}-${chunkY}`
   
-  if (noiseCache.has(cacheKey)) {
-    return noiseCache.get(cacheKey)!
+  if (hexNoiseCache.has(cacheKey)) {
+    return hexNoiseCache.get(cacheKey)!
   }
   
-  const noiseValue = getRawNoiseValue(pixelX, pixelY, noiseType)
+  const noiseValue = getRawNoiseValue(chunkX, chunkY, noiseType)
   
-  // Limit cache size
-  if (noiseCache.size > MAX_CACHE_SIZE) {
-    // Clear oldest entries
-    const keysToDelete = Array.from(noiseCache.keys()).slice(0, 1000)
-    keysToDelete.forEach(key => noiseCache.delete(key))
+  // Limit cache size to prevent memory issues
+  if (hexNoiseCache.size > 1000) {
+    hexNoiseCache.clear() // Simple but effective
   }
   
-  noiseCache.set(cacheKey, noiseValue)
+  hexNoiseCache.set(cacheKey, noiseValue)
   return noiseValue
-}
-
-export const clearNoiseCache = (): void => {
-  noiseCache.clear()
 }
 
 /**
@@ -241,8 +235,8 @@ export const renderHexagonTexture = (
   ctx.save()
   ctx.imageSmoothingEnabled = true
   
-  // Simplified rendering for performance - render a square that will be clipped
-  const area = size * 2
+  // Simplified rendering for performance - render a slightly larger square to ensure full coverage
+  const area = size * 2.2 // Increased from 2.0 to 2.2 to ensure corner coverage
   const startX = -area
   const endX = area
   const startY = -area
@@ -254,15 +248,14 @@ export const renderHexagonTexture = (
       let noiseValue: number
       
       // Use world coordinates for noise consistency
-      const worldX = centerX + px
-      const worldY = centerY + py
+      // Get world coordinates from canvas context if available, otherwise use centerX/Y
+      const worldBaseX = (ctx as any)._worldX || centerX
+      const worldBaseY = (ctx as any)._worldY || centerY
+      const worldX = worldBaseX + px
+      const worldY = worldBaseY + py
       
-      // Use scrolling noise for water, regular noise for other terrains
-      if (terrainType === 'water') {
-        noiseValue = getWaterNoiseValue(worldX, worldY, noiseType, timestamp)
-      } else {
-        noiseValue = getPixelatedNoiseValue(worldX, worldY, noiseType)
-      }
+      // Simple fast noise calculation
+      noiseValue = getRawNoiseValue(worldX, worldY, noiseType)
       
       const color = getTerrainColor(noiseValue, terrainType)
       

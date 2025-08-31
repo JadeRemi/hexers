@@ -33,27 +33,30 @@ export const isPointInPerspectiveHexagon = (
     perspectiveStrength
   )
   
-  // Check if mouse is within the distorted hexagon
-  // We need to check against the actual distorted shape, not a regular hexagon
-  const vertexScreenY = mouseY
-  const vertexNormalizedY = Math.max(0, Math.min(1, (vertexScreenY - gameAreaTop) / gameAreaHeight))
-  const vertexPerspectiveScale = 0.3 + (vertexNormalizedY * 0.7)
+  // For zero or low perspective, use simple hit detection
+  if (perspectiveStrength < 0.01) {
+    const relX = mouseX - transformed.screenX
+    const relY = mouseY - transformed.screenY
+    return isPointInRegularHexagon(relX, relY, 0, 0, hexSize * transformed.scale)
+  }
   
-  // Calculate mouse position relative to hexagon center
+  // For higher perspective, account for distortion (simplified for performance)
+  const normalizedY = Math.max(0, Math.min(1, (mouseY - gameAreaTop) / gameAreaHeight))
+  
+  // Use same scale calculation as rendering
+  const scaleVariation = 0.85 * perspectiveStrength
+  const scale = Math.max(0.08, 1 - scaleVariation + (normalizedY * scaleVariation))
+  
+  // Simple convergence approximation
+  const vanishingX = CANVAS_CONFIG.WIDTH / 2
+  const convergenceAmount = (1 - normalizedY) * perspectiveStrength * 0.5
+  const xDistFromVanishing = mouseX - vanishingX
+  const unconvergedX = xDistFromVanishing / (1 - convergenceAmount) + vanishingX - transformed.screenX
+  
+  const relX = unconvergedX
   const relY = mouseY - transformed.screenY
   
-  // Account for the Y compression in the distorted shape
-  const yCompressionFactor = vertexPerspectiveScale * 0.6
-  const uncompressedY = relY / yCompressionFactor
-  
-  // Account for X convergence
-  const vanishingX = CANVAS_CONFIG.WIDTH / 2
-  const xDistFromVanishing = mouseX - vanishingX
-  const unconvergedXDist = xDistFromVanishing / vertexPerspectiveScale
-  const unconvergedX = vanishingX + unconvergedXDist - transformed.screenX
-  
-  // Check if the unconverged point is within a regular hexagon
-  return isPointInRegularHexagon(unconvergedX, uncompressedY, 0, 0, hexSize * transformed.scale)
+  return isPointInRegularHexagon(relX, relY, 0, 0, hexSize * scale)
 }
 
 /**

@@ -1,14 +1,14 @@
 import { CANVAS_CONFIG, UI_ICONS, PERSPECTIVE_CONFIG, SPRITE_CONFIG, TERRAIN_TYPES } from '../config/constants'
 import { palette, typography } from '../theme'
 import { SPRITES } from '../assets'
-import { NoiseType, getPixelatedNoiseValue } from './textureUtils'
+import { NoiseType } from './textureUtils'
 import { Hexagon } from './hexagonUtils'
 import { Chunk } from './chunkUtils'
 import { getTerrainForHexagon } from './terrainUtils'
 import { drawButton, drawStars } from './canvasDrawUtils'
 import { Star, Unit } from './canvasDrawUtils'
 import { getBouldersInArea } from './boulderUtils'
-import { applyPerspectiveTransform, createPerspectiveHexagonPath } from './perspectiveUtils'
+import { applyPerspectiveTransform, createPerspectiveHexagonPath, calculatePerspectiveHexagonCenter } from './perspectiveUtils'
 
 
 export interface PanOffset {
@@ -118,11 +118,6 @@ export const drawChunks = (
 ): void => {
   let globalHexIndex = 0
   
-  // Reset debug tracking for this frame
-  debugTopRow = null
-  debugBottomRow = null
-  debugRows = []
-  
   for (const chunk of chunks.values()) {
     // Always use perspective transformation (smooth scale from 0.0 upward)
     // At strength 0.0, this returns the original coordinates with no distortion
@@ -154,24 +149,10 @@ export const drawChunks = (
           continue
         }
         
-        // Track all visible rows for debug
-        if (screenY >= gameAreaTop && screenY <= gameAreaTop + gameAreaHeight) {
-          // Store row info for gap calculation
-          const existingRow = debugRows.find(r => r.row === hex.gridRow)
-          if (!existingRow) {
-            debugRows.push({ row: hex.gridRow, screenY, scale })
-          }
-          
-          if (!debugTopRow || screenY < debugTopRow.screenY) {
-            debugTopRow = { screenY, scale, row: hex.gridRow }
-          }
-          if (!debugBottomRow || screenY > debugBottomRow.screenY) {
-            debugBottomRow = { screenY, scale, row: hex.gridRow }
-          }
-        }
+        // EMERGENCY: Remove all debug tracking
         
-        // Skip very small hexagons for performance
-        if (scale < 0.25) continue  // More aggressive culling for performance
+        // EMERGENCY: Ultra aggressive culling for performance recovery
+        if (scale < 0.8) continue  // Only render very large hexagons
         
         const terrainType = getTerrainForHexagon(hex.gridRow, hex.gridCol)
         
@@ -184,19 +165,9 @@ export const drawChunks = (
         const hexPath = createPerspectiveHexagonPath(screenX, screenY, hexSize, scale, gameAreaTop, gameAreaHeight, perspectiveStrength)
         ctx.clip(hexPath)
         
-        // For perspective mode, always use solid colors to ensure perfect alignment
-        // This eliminates texture/shape misalignment issues completely
+        // Use pure solid colors with NO noise calculations - fastest possible
         const terrainColor = TERRAIN_TYPES[terrainType].color
-        
-        // Add some noise-based variation to the solid color for visual interest
-        const noiseValue = getPixelatedNoiseValue(hex.x, hex.y + gameAreaTop, currentNoiseType)
-        const variation = Math.floor((noiseValue - 0.5) * 30) // ±15 color variation
-        
-        const r = Math.max(0, Math.min(255, terrainColor.r + variation))
-        const g = Math.max(0, Math.min(255, terrainColor.g + variation))
-        const b = Math.max(0, Math.min(255, terrainColor.b + variation))
-        
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+        ctx.fillStyle = `rgb(${terrainColor.r}, ${terrainColor.g}, ${terrainColor.b})`
         ctx.fill(hexPath)
         
         ctx.restore()
@@ -230,6 +201,17 @@ export const drawChunks = (
           continue
         }
         
+        // EMERGENCY: Ultra aggressive border culling
+        if (scale < 0.8) {
+          globalHexIndex++
+          continue
+        }
+        
+        // Calculate visual center only if perspective is significant (performance optimization)
+        const visualCenter = perspectiveStrength > 0.01 ? 
+          calculatePerspectiveHexagonCenter(screenX, screenY, hexSize, scale, gameAreaTop, gameAreaHeight, perspectiveStrength) :
+          { x: screenX, y: screenY }
+        
         // Draw border with perspective distortion
         ctx.save()
         ctx.translate(screenX, screenY)
@@ -245,13 +227,8 @@ export const drawChunks = (
         const borderPath = createPerspectiveHexagonPath(screenX, screenY, hexSize, scale, gameAreaTop, gameAreaHeight, perspectiveStrength)
         ctx.stroke(borderPath)
         
-        // Draw text with perspective scaling
-        ctx.fillStyle = palette.hexagon.text
-        const fontSize = parseInt(typography.fontSize.sm) * scale
-        ctx.font = `${fontSize}px ${typography.fontFamily.primary}`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(`${hex.gridRow},${hex.gridCol}`, 0, 0)
+        // EMERGENCY: Disable ALL text rendering for performance recovery
+        // const shouldShowText = false
         
         ctx.restore()
       
@@ -260,11 +237,7 @@ export const drawChunks = (
   }
 }
 
-// Debug tracking for scaling values and gaps
-let debugTopRow: { screenY: number, scale: number, row: number } | null = null
-let debugBottomRow: { screenY: number, scale: number, row: number } | null = null
-let debugRows: { row: number, screenY: number, scale: number }[] = []
-let lastDebugTime = 0
+// EMERGENCY: Removed all debug variables
 
 export const renderFrame = (
   ctx: CanvasRenderingContext2D,
@@ -365,14 +338,21 @@ export const renderFrame = (
           const screenY = transformed.screenY
           const scale = transformed.scale
           
+          // Calculate visual center only if perspective is significant (performance optimization)  
+          const visualCenter = perspectiveStrength > 0.01 ?
+            calculatePerspectiveHexagonCenter(screenX, screenY, hexSize, scale, gameAreaTop, gameAreaHeight, perspectiveStrength) :
+            { x: screenX, y: screenY }
+          
           const sprite = sprites[unit.sprite]
           if (sprite) {
             ctx.save()
-            ctx.translate(screenX, screenY)
+            // Position sprite at visual center of distorted hexagon
+            ctx.translate(visualCenter.x, visualCenter.y)
             
-            // Apply the same scale as hexagons for proper positioning
-            // Minimal compression since perspective is very low (0.005)
-            ctx.scale(scale, scale)
+            // Apply perspective scale with minimum visible size
+            const minSpriteScale = 0.5 // Ensure sprites stay visible even at extreme perspective
+            const spriteScale = Math.max(minSpriteScale, scale)
+            ctx.scale(spriteScale, spriteScale)
             
             // Draw sprite centered at origin
             const sourceWidth = unit.type === 'wizard' ? 
@@ -404,20 +384,7 @@ export const renderFrame = (
   drawPanels(ctx)
   drawTopPanelControls(ctx, fps, currentNoiseType, perspectiveStrength)
   
-  // Debug output once per second
-  const currentTime = Date.now()
-  if (currentTime - lastDebugTime >= 1000) {
-    if (debugTopRow && debugBottomRow) {
-      const visibleRows = debugBottomRow.row - debugTopRow.row + 1
-      console.log(
-        `Y coords: TopRow(${debugTopRow.row})=${Math.round(debugTopRow.screenY)} | ` +
-        `BottomRow(${debugBottomRow.row})=${Math.round(debugBottomRow.screenY)} | ` +
-        `Canvas: Top=${gameAreaTop} Bottom=${gameAreaTop + gameAreaHeight} | ` +
-        `Rows: ${visibleRows}/${PERSPECTIVE_CONFIG.TARGET_VISIBLE_ROWS}`
-      )
-    }
-    lastDebugTime = currentTime
-  }
+  // EMERGENCY: Remove all debug output
 }
 
 export const getButtonPositions = () => {

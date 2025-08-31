@@ -21,19 +21,22 @@ export const applyPerspectiveTransform = (
   
   // Calculate scale based on screen Y position (viewport-based)
   // At strength 0, scale should be 1.0 everywhere (no perspective)
-  // At higher strength, scale varies from small at top to large at bottom
+  // At higher strength, scale varies dramatically from tiny at top to large at bottom
   const normalizedY = Math.max(0, Math.min(1, (screenY - gameAreaTop) / gameAreaHeight))
-  const scaleVariation = 0.7 * strength // How much scale varies (0 when strength=0)
-  const scale = 1 - scaleVariation + (normalizedY * scaleVariation)
+  const scaleVariation = 0.85 * strength // Increased from 0.7 to 0.85 for more dramatic size difference
+  const scale = Math.max(0.08, 1 - scaleVariation + (normalizedY * scaleVariation)) // Minimum scale 0.08
   
-  // Y compression: at strength 0, no compression (perspectiveY = screenY)
-  // At higher strength, compress toward compression center
-  const compressionCenterY = gameAreaTop + gameAreaHeight * 0.2
-  const yDistFromCompressionCenter = screenY - compressionCenterY
+  // Y compression: compress distances toward horizon (top of viewport)
+  // At strength 0, no compression (perspectiveY = screenY)
+  // At higher strength, compress Y distances based on distance from horizon
+  const horizonY = gameAreaTop + gameAreaHeight * 0.1 // Horizon near top
+  const yDistFromHorizon = screenY - horizonY
   
-  // Compression factor smoothly scales from 1.0 (no compression) to more compression
-  const compressionFactor = 1 - (strength * 0.5 * (1 - scale))
-  const perspectiveY = compressionCenterY + yDistFromCompressionCenter * compressionFactor
+  // Progressive compression: much stronger compression for proper trapezoid effect
+  // Objects near horizon get heavily compressed, creating dramatic foreshortening
+  const compressionStrength = strength * 1.5 // Increased from 0.6 to 1.5 for proper trapezoid
+  const compressionFactor = Math.max(0.1, 1 - (compressionStrength * Math.pow(1 - normalizedY, 1.8)))
+  const perspectiveY = horizonY + yDistFromHorizon * compressionFactor
   
   // Horizontal convergence: at strength 0, no convergence (perspectiveX = screenX)
   // At higher strength, converge toward center based on Y position
@@ -135,11 +138,7 @@ export const createPerspectiveHexagonPath = (
     const vertexScreenY = centerY + baseY * scale
     const vertexNormalizedY = Math.max(0, Math.min(1, (vertexScreenY - gameAreaTop) / gameAreaHeight))
     
-    // Different scale for top vs bottom of hexagon
-    // This creates the trapezoidal distortion
-    // At strength 0, vertexPerspectiveScale should be 1.0 everywhere (no distortion)
-    const scaleVariation = 0.7 * strength
-    const vertexPerspectiveScale = 1 - scaleVariation + (vertexNormalizedY * scaleVariation)
+    // Apply X convergence based on Y position (creates trapezoidal distortion)
     
     // Apply X convergence toward vanishing point
     // At strength 0, no convergence (convergedX = centerX + baseX * scale)
@@ -147,10 +146,9 @@ export const createPerspectiveHexagonPath = (
     const convergenceAmount = (1 - vertexNormalizedY) * strength * 0.5
     const convergedX = vanishingX + xDistFromVanishing * (1 - convergenceAmount)
     
-    // Apply Y compression - stronger at top
-    // At strength 0, no compression (compressedY = baseY * scale)
-    const yCompressionFactor = 1 - (strength * 0.4 * (1 - vertexPerspectiveScale))
-    const compressedY = baseY * scale * yCompressionFactor
+    // Apply Y scaling consistently with perspective transform
+    // Use the same scale as the main transform - no additional compression here
+    const compressedY = baseY * scale
     
     // Convert to local coordinates (relative to translate origin at centerX, centerY)
     const localX = convergedX - centerX
@@ -165,6 +163,42 @@ export const createPerspectiveHexagonPath = (
   
   path.closePath()
   return path
+}
+
+/**
+ * Calculate the visual center of a perspective-distorted hexagon (fast approximation)
+ * This accounts for trapezoid distortion that shifts the visual center
+ */
+export const calculatePerspectiveHexagonCenter = (
+  centerX: number,
+  centerY: number,
+  size: number,
+  scale: number,
+  gameAreaTop: number,
+  gameAreaHeight: number,
+  strength: number = PERSPECTIVE_CONFIG.STRENGTH
+): { x: number, y: number } => {
+  if (strength === 0) {
+    return { x: centerX, y: centerY }
+  }
+
+  // Fast approximation: only check top and bottom of hexagon for convergence
+  // This is much faster than calculating all 6 vertices
+  const normalizedY = Math.max(0, Math.min(1, (centerY - gameAreaTop) / gameAreaHeight))
+  
+  // X convergence based on center position
+  const vanishingX = CANVAS_CONFIG.WIDTH / 2
+  const xDistFromVanishing = centerX - vanishingX
+  const convergenceAmount = (1 - normalizedY) * strength * 0.5
+  const visualCenterX = vanishingX + xDistFromVanishing * (1 - convergenceAmount)
+  
+  // Y position remains centered (the Y compression is handled by main transform)
+  const visualCenterY = centerY
+  
+  return {
+    x: visualCenterX,
+    y: visualCenterY
+  }
 }
 
 /**
