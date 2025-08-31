@@ -11,6 +11,8 @@ import { drawButton, drawStars, drawUnits } from './canvasDrawUtils'
 import { Star, Unit } from './canvasDrawUtils'
 import { renderChunkToCanvas, getChunkBounds } from './chunkCacheUtils'
 import { getBouldersInArea } from './boulderUtils'
+import { applyPerspective } from './perspectiveUtils'
+import { createPerspectiveHexagonPath } from './hexagonUtils'
 
 export interface PanOffset {
   x: number
@@ -18,6 +20,7 @@ export interface PanOffset {
 }
 
 export const drawPanels = (ctx: CanvasRenderingContext2D): void => {
+  
   // Top panel
   ctx.fillStyle = palette.background.panel
   ctx.fillRect(0, 0, CANVAS_CONFIG.WIDTH, CANVAS_CONFIG.PANEL_HEIGHT)
@@ -81,9 +84,11 @@ export const drawChunks = (
   hoveredHexIndex: number | null,
   currentNoiseType: NoiseType,
   gameAreaTop: number,
+  gameAreaHeight: number,
   hexSize: number,
   panOffset: PanOffset,
-  gradientRotation: number
+  gradientRotation: number,
+  timestamp: number
 ): void => {
   ctx.save()
   ctx.translate(panOffset.x, panOffset.y)
@@ -92,7 +97,7 @@ export const drawChunks = (
   
   for (const chunk of chunks.values()) {
     // Render cached chunk texture
-    const chunkCanvas = renderChunkToCanvas(chunk, hexSize, currentNoiseType)
+    const chunkCanvas = renderChunkToCanvas(chunk, hexSize, currentNoiseType, timestamp, gameAreaTop, gameAreaHeight)
     const { minX, minY } = getChunkBounds(chunk, hexSize)
     
     ctx.drawImage(chunkCanvas, minX, minY + gameAreaTop)
@@ -101,19 +106,24 @@ export const drawChunks = (
     for (const hex of chunk.hexagons) {
       const hexY = hex.y + gameAreaTop
       
+      // Apply perspective to hexagon center and size
+      const { x: perspectiveX, y: perspectiveY, scale } = applyPerspective(hex.x, hexY, gameAreaTop, gameAreaHeight)
+      const perspectiveSize = hexSize * scale
+      
       // Draw border - animated for hovered, static for others
       if (globalHexIndex === hoveredHexIndex) {
-        drawAnimatedHexagonBorder(ctx, hex.x, hexY, hexSize, gradientRotation)
+        drawAnimatedHexagonBorder(ctx, perspectiveX, perspectiveY, perspectiveSize, gradientRotation)
       } else {
-        drawPixelatedHexagonBorder(ctx, hex.x, hexY, hexSize, palette.hexagon.borderDefault)
+        drawPixelatedHexagonBorder(ctx, perspectiveX, perspectiveY, perspectiveSize, palette.hexagon.borderDefault)
       }
       
-      // Draw text
+      // Draw text with perspective scaling
       ctx.fillStyle = palette.hexagon.text
-      ctx.font = typography.fontSize.sm
+      const fontSize = parseInt(typography.fontSize.sm) * scale
+      ctx.font = `${fontSize}px ${typography.fontFamily.primary}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(`${hex.gridRow},${hex.gridCol}`, hex.x, hexY)
+      ctx.fillText(`${hex.gridRow},${hex.gridCol}`, perspectiveX, perspectiveY)
       
       globalHexIndex++
     }
@@ -135,8 +145,10 @@ export const renderFrame = (
   gameAreaHeight: number,
   hexSize: number,
   panOffset: PanOffset,
-  gradientRotation: number
+  gradientRotation: number,
+  timestamp: number
 ): void => {
+  
   ctx.imageSmoothingEnabled = false
   
   // Clear canvas
@@ -160,7 +172,7 @@ export const renderFrame = (
   ctx.rect(0, gameAreaTop, CANVAS_CONFIG.WIDTH, gameAreaHeight)
   ctx.clip()
   
-  drawChunks(ctx, chunks, hoveredHexIndex, currentNoiseType, gameAreaTop, hexSize, panOffset, gradientRotation)
+  drawChunks(ctx, chunks, hoveredHexIndex, currentNoiseType, gameAreaTop, gameAreaHeight, hexSize, panOffset, gradientRotation, timestamp)
   
   // Draw units (including boulders) with adjusted position and pan offset
   ctx.save()
@@ -203,7 +215,7 @@ export const renderFrame = (
   // Combine regular units with boulder units
   const allUnits = [...units, ...boulderUnits]
   
-  drawUnits(ctx, allUnits, adjustedHexagons, sprites, hexSize)
+  drawUnits(ctx, allUnits, adjustedHexagons, sprites, hexSize, gameAreaTop, gameAreaHeight)
   ctx.restore()
   
   ctx.restore()

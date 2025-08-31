@@ -1,6 +1,6 @@
 import { Chunk } from './chunkUtils'
 import { NoiseType } from './textureUtils'
-import { TEXTURE_CONFIG, CHUNK_CONFIG } from '../config/constants'
+import { TEXTURE_CONFIG, CHUNK_CONFIG, HEXAGON_CONFIG } from '../config/constants'
 import { renderHexagonTexture } from './textureUtils'
 import { getTerrainForHexagon } from './terrainUtils'
 
@@ -13,23 +13,27 @@ interface ChunkCanvas {
 const chunkCanvasCache = new Map<string, ChunkCanvas>()
 const MAX_CACHED_CHUNKS = 50
 
-export const getChunkCacheKey = (chunkX: number, chunkY: number, noiseType: NoiseType): string => {
+export const getChunkCacheKey = (chunkX: number, chunkY: number, noiseType: NoiseType, timestamp: number = 0): string => {
+  // Temporarily disable timestamp-based cache keys to debug
   return `${chunkX}_${chunkY}_${noiseType}`
 }
 
 export const renderChunkToCanvas = (
   chunk: Chunk,
   hexSize: number,
-  noiseType: NoiseType
+  noiseType: NoiseType,
+  timestamp: number = 0,
+  gameAreaTop: number = 0,
+  gameAreaHeight: number = 1080
 ): HTMLCanvasElement => {
-  const cacheKey = getChunkCacheKey(chunk.x, chunk.y, noiseType)
+  const cacheKey = getChunkCacheKey(chunk.x, chunk.y, noiseType, timestamp)
   
   if (chunkCanvasCache.has(cacheKey)) {
     return chunkCanvasCache.get(cacheKey)!.canvas
   }
   
   // Calculate chunk bounds
-  const gap = 12
+  const gap = HEXAGON_CONFIG.CELL_GAP
   const hexWidth = Math.sqrt(3) * hexSize
   const horizontalSpacing = hexWidth + gap
   const verticalSpacing = hexSize * 2 * 0.75 + gap
@@ -65,7 +69,7 @@ export const renderChunkToCanvas = (
     const localY = hex.y - minY
     
     ctx.save()
-    renderHexagonTexture(ctx, localX, localY, hexSize, noiseType, terrainType)
+    renderHexagonTexture(ctx, localX, localY, hexSize, noiseType, terrainType, timestamp, gameAreaTop, gameAreaHeight)
     ctx.restore()
   }
   
@@ -88,7 +92,7 @@ export const clearChunkCache = (): void => {
 }
 
 export const getChunkBounds = (chunk: Chunk, hexSize: number) => {
-  const gap = 12
+  const gap = HEXAGON_CONFIG.CELL_GAP
   const hexWidth = Math.sqrt(3) * hexSize
   
   let minX = Infinity, minY = Infinity

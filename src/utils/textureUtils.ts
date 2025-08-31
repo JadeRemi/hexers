@@ -1,9 +1,19 @@
 import { perlinNoise, simplexNoise, voronoiNoise, generateVoronoiPoints } from './noiseUtils'
-import { TEXTURE_CONFIG, TERRAIN_TYPES, TerrainType } from '../config/constants'
+import { TEXTURE_CONFIG, TERRAIN_TYPES, TerrainType, CANVAS_CONFIG } from '../config/constants'
+import { SeededRandom } from './seedUtils'
+import { getPerspectiveNoiseCoords } from './perspectiveUtils'
 
 export type NoiseType = 'perlin' | 'simplex' | 'voronoi'
 
 const voronoiPoints = generateVoronoiPoints(200, 2000, 2000)
+
+let waterSeed: string = ''
+let waterRandom: SeededRandom | null = null
+
+export const setWaterSeed = (seed: string): void => {
+  waterSeed = seed + '_water'
+  waterRandom = new SeededRandom(waterSeed)
+}
 
 /**
  * Middleware function that gets raw noise and applies zoom transformations
@@ -139,6 +149,44 @@ const hslToRgb = (h: number, s: number, l: number): { r: number; g: number; b: n
   }
 }
 
+export const getWaterNoiseValue = (x: number, y: number, noiseType: NoiseType, timestamp: number = 0): number => {
+  // Add time-based scrolling offset for water
+  const scrollOffset = timestamp * TEXTURE_CONFIG.WATER_SCROLL_SPEED
+  const waterX = x + scrollOffset * 0.7 // Diagonal movement
+  const waterY = y + scrollOffset * 0.3
+  
+  let noiseValue: number
+  
+  switch (noiseType) {
+    case 'perlin': {
+      const scaledX = waterX * TEXTURE_CONFIG.WATER_NOISE_ZOOM
+      const scaledY = waterY * TEXTURE_CONFIG.WATER_NOISE_ZOOM
+      noiseValue = (perlinNoise(scaledX, scaledY) + 1) / 2
+      break
+    }
+    case 'simplex': {
+      const scaledX = waterX * TEXTURE_CONFIG.WATER_NOISE_ZOOM
+      const scaledY = waterY * TEXTURE_CONFIG.WATER_NOISE_ZOOM
+      noiseValue = (simplexNoise(scaledX, scaledY) + 1) / 2
+      break
+    }
+    case 'voronoi': {
+      const scaledX = waterX * TEXTURE_CONFIG.VORONOI_ZOOM_MULTIPLIER
+      const scaledY = waterY * TEXTURE_CONFIG.VORONOI_ZOOM_MULTIPLIER
+      const vNoise = voronoiNoise(scaledX, scaledY, voronoiPoints)
+      noiseValue = Math.min(Math.max(Math.abs(vNoise) / 50, 0), 1)
+      break
+    }
+    default:
+      noiseValue = 0.5
+  }
+  
+  // Apply contrast enhancement
+  const center = 0.5
+  const contrasted = center + (noiseValue - center) * TEXTURE_CONFIG.NOISE_CONTRAST
+  return Math.max(0, Math.min(1, contrasted))
+}
+
 export const getTerrainColor = (
   noiseValue: number,
   terrainType: TerrainType
@@ -185,7 +233,10 @@ export const renderHexagonTexture = (
   centerY: number,
   size: number,
   noiseType: NoiseType,
-  terrainType: TerrainType
+  terrainType: TerrainType,
+  timestamp: number = 0,
+  gameAreaTop: number = 0,
+  gameAreaHeight: number = CANVAS_CONFIG.HEIGHT
 ): void => {
   const pixelSize = TEXTURE_CONFIG.PIXELATION_SIZE
   const hexWidth = Math.sqrt(3) * size
@@ -206,7 +257,18 @@ export const renderHexagonTexture = (
       const checkY = py + pixelSize / 2
       
       if (isPointInHexagon(checkX, checkY, centerX, centerY, size)) {
-        const noiseValue = getPixelatedNoiseValue(px, py, noiseType)
+        let noiseValue: number
+        
+        // Apply perspective to noise coordinates
+        const perspectiveCoords = getPerspectiveNoiseCoords(px, py, gameAreaTop, gameAreaHeight)
+        
+        // Use scrolling noise for water, regular noise for other terrains
+        if (terrainType === 'water') {
+          noiseValue = getWaterNoiseValue(perspectiveCoords.x, perspectiveCoords.y, noiseType, timestamp)
+        } else {
+          noiseValue = getPixelatedNoiseValue(perspectiveCoords.x, perspectiveCoords.y, noiseType)
+        }
+        
         const color = getTerrainColor(noiseValue, terrainType)
         
         ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`

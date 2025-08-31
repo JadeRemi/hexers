@@ -1,5 +1,5 @@
 import { Hexagon } from './hexagonUtils'
-import { CHUNK_CONFIG, CANVAS_CONFIG } from '../config/constants'
+import { CHUNK_CONFIG, CANVAS_CONFIG, HEXAGON_CONFIG } from '../config/constants'
 import { SeededRandom } from './seedUtils'
 
 export interface Chunk {
@@ -31,7 +31,7 @@ export const getVisibleChunks = (
   hexSize: number,
   gameAreaHeight: number
 ): ChunkKey[] => {
-  const gap = 12
+  const gap = HEXAGON_CONFIG.CELL_GAP
   const hexWidth = Math.sqrt(3) * hexSize
   const horizontalSpacing = hexWidth + gap
   const verticalSpacing = hexSize * 2 * 0.75 + gap
@@ -71,7 +71,7 @@ export const generateChunkHexagons = (
   hexSize: number
 ): Hexagon[] => {
   const hexagons: Hexagon[] = []
-  const gap = 12 // Same gap as before
+  const gap = HEXAGON_CONFIG.CELL_GAP
   const hexWidth = Math.sqrt(3) * hexSize
   const hexHeight = hexSize * 2
   
@@ -142,7 +142,7 @@ export const getHexagonWorldPosition = (
   gridCol: number,
   hexSize: number
 ): { x: number, y: number } => {
-  const gap = 12
+  const gap = HEXAGON_CONFIG.CELL_GAP
   const hexWidth = Math.sqrt(3) * hexSize
   const hexHeight = hexSize * 2
   

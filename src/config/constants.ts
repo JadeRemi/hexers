@@ -7,7 +7,7 @@ export const CANVAS_CONFIG = {
 
 export const HEXAGON_CONFIG = {
   BORDER_WIDTH: 8,
-  CELL_GAP: 12,
+  CELL_GAP: 48, // Increased 4x from 12 to 48
   GRADIENT_ROTATION_SPEED: 0.002 // radians per millisecond (doubled from 0.001)
 } as const
 
@@ -33,7 +33,14 @@ export const TEXTURE_CONFIG = {
   NOISE_ZOOM: 0.03,
   VORONOI_ZOOM_MULTIPLIER: 0.3, // Makes voronoi more zoomed out (smaller value = more zoomed out)
   NOISE_CONTRAST: 1.5, // Increases contrast (higher = more contrast)
-  SATURATION_EFFECT: 0.3 // How much noise affects saturation (0-1)
+  SATURATION_EFFECT: 0.3, // How much noise affects saturation (0-1)
+  WATER_SCROLL_SPEED: 0.01, // Speed of water texture scrolling
+  WATER_NOISE_ZOOM: 0.02 // Different zoom level for water
+} as const
+
+export const PERSPECTIVE_CONFIG = {
+  STRENGTH: 0.0, // 0 = top-down, 1 = maximum perspective (temporarily disabled)
+  HORIZON_Y: 0.3 // Y position (0-1) where perspective effect starts
 } as const
 
 export const TERRAIN_TYPES = {

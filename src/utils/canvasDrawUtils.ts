@@ -1,7 +1,8 @@
 import { palette, typography } from '../theme'
 import { SPRITES } from '../assets'
-import { SPRITE_CONFIG } from '../config/constants'
+import { SPRITE_CONFIG, CANVAS_CONFIG } from '../config/constants'
 import { Hexagon } from './hexagonUtils'
+import { applyPerspective } from './perspectiveUtils'
 
 export interface Star {
   x: number
@@ -30,7 +31,9 @@ export const drawUnits = (
   units: Unit[],
   hexagons: Hexagon[],
   sprites: { [key: string]: HTMLImageElement },
-  hexSize: number
+  hexSize: number,
+  gameAreaTop: number = 0,
+  gameAreaHeight: number = CANVAS_CONFIG.HEIGHT
 ): void => {
   
   for (const unit of units) {
@@ -54,14 +57,16 @@ export const drawUnits = (
       }
       
       if (image) {
-        const hexWidth = Math.sqrt(3) * hexSize
+        // Apply perspective to hex position and size
+        const { x: perspectiveX, y: perspectiveY, scale } = applyPerspective(hex.x, hex.y, gameAreaTop, gameAreaHeight)
+        
+        const hexWidth = Math.sqrt(3) * hexSize * scale
         const spriteWidth = hexWidth * SPRITE_CONFIG.UNIT_SCALE
         const spriteHeight = (spriteWidth / sourceWidth) * sourceHeight
         
-        // Position sprite so its bottom center is at the cell center
-        const x = hex.x - spriteWidth / 2
-        const y = hex.y - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
-        
+        // Position sprite so its bottom center is at the perspective-adjusted cell center
+        const x = perspectiveX - spriteWidth / 2
+        const y = perspectiveY - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
         
         ctx.drawImage(
           image,

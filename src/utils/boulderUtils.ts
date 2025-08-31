@@ -1,5 +1,6 @@
 import { simplexNoise } from './noiseUtils'
 import { SeededRandom } from './seedUtils'
+import { HEXAGON_CONFIG } from '../config/constants'
 
 let boulderSeed: string = ''
 let seededRandom: SeededRandom | null = null

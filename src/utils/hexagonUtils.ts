@@ -1,3 +1,5 @@
+import { applyPerspective } from './perspectiveUtils'
+
 export interface Hexagon {
   x: number
   y: number
@@ -14,6 +16,32 @@ export const createHexagonPath = (centerX: number, centerY: number, size: number
     const angle = (Math.PI / 3) * i - Math.PI / 6
     const x = centerX + size * Math.cos(angle)
     const y = centerY + size * Math.sin(angle)
+    if (i === 0) {
+      path.moveTo(x, y)
+    } else {
+      path.lineTo(x, y)
+    }
+  }
+  path.closePath()
+  return path
+}
+
+export const createPerspectiveHexagonPath = (
+  centerX: number, 
+  centerY: number, 
+  size: number, 
+  gameAreaTop: number, 
+  gameAreaHeight: number
+): Path2D => {
+  const path = new Path2D()
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6
+    const localX = centerX + size * Math.cos(angle)
+    const localY = centerY + size * Math.sin(angle)
+    
+    // Apply perspective to each vertex
+    const { x, y } = applyPerspective(localX, localY, gameAreaTop, gameAreaHeight)
+    
     if (i === 0) {
       path.moveTo(x, y)
     } else {

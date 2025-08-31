@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { calculateCanvasSize } from '../utils/canvasUtils'
 import { isPointInHexagon, calculateHexSize } from '../utils/hexagonUtils'
-import { getVisibleChunks, updateLoadedChunks, Chunk, getHexagonWorldPosition } from '../utils/chunkUtils'
+import { getVisibleChunks, updateLoadedChunks, Chunk } from '../utils/chunkUtils'
 import { NoiseType } from '../utils/textureUtils'
 import { CANVAS_CONFIG } from '../config/constants'
 import { loadImage, SPRITES } from '../assets'
@@ -14,6 +14,7 @@ import { setTerrainSeed } from '../utils/terrainUtils'
 import { GradientState, updateGradientRotation } from '../utils/animatedBorderUtils'
 import { clearChunkCache } from '../utils/chunkCacheUtils'
 import { setBoulderSeed, getBouldersInArea } from '../utils/boulderUtils'
+import { setWaterSeed } from '../utils/textureUtils'
 import './Canvas.css'
 
 const Canvas: React.FC = () => {
@@ -81,7 +82,8 @@ const Canvas: React.FC = () => {
         gameAreaHeight,
         hexSize,
         panOffset,
-        gradientRotation
+        gradientRotation,
+        timestamp
       )
       
       lastFrameTimeRef.current = timestamp - (deltaTime % frameTime)
@@ -247,9 +249,10 @@ const Canvas: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    // Set terrain and boulder seeds
+    // Set terrain, boulder, and water seeds
     setTerrainSeed(seedRef.current)
     setBoulderSeed(seedRef.current)
+    setWaterSeed(seedRef.current)
     
     // Generate stars
     starsRef.current = generateStars()
@@ -269,18 +272,10 @@ const Canvas: React.FC = () => {
     console.log(`Session seed: ${seedRef.current}`)
   }, [])
   
-  // Initialize camera position to center on cell (1,1)
+  // Initialize camera position to center on cell (1,1) - temporarily disabled for debugging
   useEffect(() => {
-    const wizardPos = getHexagonWorldPosition(1, 1, hexSize)
-    const centerX = CANVAS_CONFIG.WIDTH / 2
-    const centerY = gameAreaTop + gameAreaHeight / 2
-    
-    const initialPanOffset = {
-      x: centerX - wizardPos.x,
-      y: centerY - wizardPos.y
-    }
-    
-    setPanOffset(initialPanOffset)
+    // Reset to default pan offset
+    setPanOffset({ x: 0, y: 0 })
   }, [hexSize, gameAreaTop, gameAreaHeight])
   
   // Initialize chunks on mount
