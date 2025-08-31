@@ -2,7 +2,7 @@ import { CANVAS_CONFIG, UI_ICONS, PERSPECTIVE_CONFIG, SPRITE_CONFIG } from '../c
 import { palette, typography } from '../theme'
 import { SPRITES } from '../assets'
 import { NoiseType } from './textureUtils'
-import { Hexagon, createHexagonPath } from './hexagonUtils'
+import { Hexagon } from './hexagonUtils'
 import { Chunk } from './chunkUtils'
 import { renderHexagonTexture } from './textureUtils'
 import { drawPixelatedHexagonBorder } from './borderUtils'
@@ -12,7 +12,7 @@ import { drawButton, drawStars, drawUnits } from './canvasDrawUtils'
 import { Star, Unit } from './canvasDrawUtils'
 import { renderChunkToCanvas, getChunkBounds } from './chunkCacheUtils'
 import { getBouldersInArea } from './boulderUtils'
-import { getPerspectiveScale } from './perspectiveUtils'
+import { applyPerspectiveTransform, createPerspectiveHexagonPath } from './perspectiveUtils'
 
 
 export interface PanOffset {
@@ -96,29 +96,46 @@ export const drawChunks = (
   // Reset debug tracking for this frame
   debugTopRow = null
   debugBottomRow = null
+  debugRows = []
   
   for (const chunk of chunks.values()) {
     if (PERSPECTIVE_CONFIG.STRENGTH > 0) {
-      // For perspective mode - we need to render hexagons with consistent transforms
+      // For perspective mode - use unified transformation
       for (const hex of chunk.hexagons) {
         // World position of hexagon
         const worldX = hex.x
         const worldY = hex.y + gameAreaTop
         
-        // Screen position after panning (where it will appear on screen)
-        const screenX = worldX + panOffset.x
-        const screenY = worldY + panOffset.y
+        // Apply unified perspective transformation
+        const transformed = applyPerspectiveTransform(
+          worldX,
+          worldY,
+          panOffset.x,
+          panOffset.y,
+          gameAreaTop,
+          gameAreaHeight
+        )
         
-        // Only render hexagons that are within or near the viewport
-        if (screenY < gameAreaTop - hexSize * 2 || screenY > gameAreaTop + gameAreaHeight + hexSize * 2) {
+        const screenX = transformed.screenX
+        const screenY = transformed.screenY
+        const scale = transformed.scale
+        
+        // Be very generous with viewport culling in perspective mode
+        // Since perspective compresses things at the top, we need to render many more rows above
+        const topMargin = hexSize * 20  // Render many more rows above viewport
+        const bottomMargin = hexSize * 4
+        if (screenY < gameAreaTop - topMargin || screenY > gameAreaTop + gameAreaHeight + bottomMargin) {
           continue
         }
         
-        // Get perspective scale based on screen Y position
-        const scale = getPerspectiveScale(screenY, gameAreaTop, gameAreaHeight)
-        
-        // Track top and bottom visible rows for debug
+        // Track all visible rows for debug
         if (screenY >= gameAreaTop && screenY <= gameAreaTop + gameAreaHeight) {
+          // Store row info for gap calculation
+          const existingRow = debugRows.find(r => r.row === hex.gridRow)
+          if (!existingRow) {
+            debugRows.push({ row: hex.gridRow, screenY, scale })
+          }
+          
           if (!debugTopRow || screenY < debugTopRow.screenY) {
             debugTopRow = { screenY, scale, row: hex.gridRow }
           }
@@ -134,14 +151,16 @@ export const drawChunks = (
         
         ctx.save()
         
-        // Apply perspective: translate to screen position, then scale around that point
+        // Translate to the transformed screen position
         ctx.translate(screenX, screenY)
-        ctx.scale(scale, scale)
         
-        // Render hexagon at origin (already translated)
-        const hexPath = createHexagonPath(0, 0, hexSize)
+        // Create and clip to perspective-distorted hexagon path (created at origin)
+        const hexPath = createPerspectiveHexagonPath(screenX, screenY, hexSize, scale, gameAreaTop, gameAreaHeight)
         ctx.clip(hexPath)
-        renderHexagonTexture(ctx, 0, 0, hexSize, currentNoiseType, terrainType, timestamp)
+        
+        // Render texture at origin with proper scaling
+        // The texture should fill the distorted hexagon shape
+        renderHexagonTexture(ctx, 0, 0, hexSize * scale, currentNoiseType, terrainType, timestamp)
         
         ctx.restore()
       }
@@ -157,58 +176,42 @@ export const drawChunks = (
       const hexY = hex.y + gameAreaTop
       
       if (PERSPECTIVE_CONFIG.STRENGTH > 0) {
-        // World position (hexY already includes gameAreaTop)
-        const worldX = hex.x
-        const worldY = hexY
+        // Apply unified perspective transformation for borders
+        const transformed = applyPerspectiveTransform(
+          hex.x,
+          hexY,
+          panOffset.x,
+          panOffset.y,
+          gameAreaTop,
+          gameAreaHeight
+        )
         
-        // Screen position after panning
-        const screenX = worldX + panOffset.x
-        const screenY = worldY + panOffset.y
+        const screenX = transformed.screenX
+        const screenY = transformed.screenY
+        const scale = transformed.scale
         
-        // Skip if outside viewport
-        if (screenY < gameAreaTop - hexSize * 2 || screenY > gameAreaTop + gameAreaHeight + hexSize * 2) {
+        // Skip if outside viewport (same generous margin as texture rendering)
+        const topMargin = hexSize * 20
+        const bottomMargin = hexSize * 4
+        if (screenY < gameAreaTop - topMargin || screenY > gameAreaTop + gameAreaHeight + bottomMargin) {
           globalHexIndex++
           continue
         }
         
-        // Get perspective scale for this screen position
-        const scale = getPerspectiveScale(screenY, gameAreaTop, gameAreaHeight)
-        
-        // Simple scaled border at screen position
+        // Draw border with perspective distortion
         ctx.save()
         ctx.translate(screenX, screenY)
-        ctx.scale(scale, scale)
         
         // Draw border
         ctx.strokeStyle = globalHexIndex === hoveredHexIndex ? 
           palette.hexagon.borderHover : palette.hexagon.borderDefault
-        ctx.lineWidth = 2
+        // Scale line width properly - thicker at bottom, thinner at top
+        // Base thickness of 8px, scaled by perspective
+        ctx.lineWidth = 8 * scale
         
-        if (globalHexIndex === hoveredHexIndex) {
-          // For hovered hexagons, use animated border (simplified for now)
-          ctx.beginPath()
-          for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i - Math.PI / 6
-            const x = hexSize * Math.cos(angle)
-            const y = hexSize * Math.sin(angle)
-            if (i === 0) ctx.moveTo(x, y)
-            else ctx.lineTo(x, y)
-          }
-          ctx.closePath()
-          ctx.stroke()
-        } else {
-          // Regular hexagon border
-          ctx.beginPath()
-          for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i - Math.PI / 6
-            const x = hexSize * Math.cos(angle)
-            const y = hexSize * Math.sin(angle)
-            if (i === 0) ctx.moveTo(x, y)
-            else ctx.lineTo(x, y)
-          }
-          ctx.closePath()
-          ctx.stroke()
-        }
+        // Use perspective-distorted hexagon path
+        const borderPath = createPerspectiveHexagonPath(screenX, screenY, hexSize, scale, gameAreaTop, gameAreaHeight)
+        ctx.stroke(borderPath)
         
         // Draw text with perspective scaling
         ctx.fillStyle = palette.hexagon.text
@@ -242,10 +245,11 @@ export const drawChunks = (
   }
 }
 
-// Debug tracking for scaling values
+// Debug tracking for scaling values and gaps
 let lastDebugTime = 0
 let debugTopRow: { screenY: number, scale: number, row: number } | null = null
 let debugBottomRow: { screenY: number, scale: number, row: number } | null = null
+let debugRows: { row: number, screenY: number, scale: number }[] = []
 
 export const renderFrame = (
   ctx: CanvasRenderingContext2D,
@@ -330,14 +334,19 @@ export const renderFrame = (
         )
         
         if (hex) {
-          // World position
-          const worldX = hex.x
-          const worldY = hex.y + gameAreaTop
+          // Apply unified perspective transformation for units
+          const transformed = applyPerspectiveTransform(
+            hex.x,
+            hex.y + gameAreaTop,
+            panOffset.x,
+            panOffset.y,
+            gameAreaTop,
+            gameAreaHeight
+          )
           
-          // Screen position after panning
-          const screenX = worldX + panOffset.x
-          const screenY = worldY + panOffset.y
-          const scale = getPerspectiveScale(screenY, gameAreaTop, gameAreaHeight)
+          const screenX = transformed.screenX
+          const screenY = transformed.screenY
+          const scale = transformed.scale
           
           const sprite = sprites[unit.sprite]
           if (sprite) {
@@ -414,31 +423,6 @@ export const renderFrame = (
   // Draw panels and controls (not affected by pan)
   drawPanels(ctx)
   drawTopPanelControls(ctx, fps, currentNoiseType)
-  
-  // Debug: Draw scaling center as red dot
-  if (PERSPECTIVE_CONFIG.STRENGTH > 0) {
-    const scalingCenterY = gameAreaTop + gameAreaHeight / 2
-    ctx.fillStyle = 'red'
-    ctx.beginPath()
-    ctx.arc(CANVAS_CONFIG.WIDTH / 2, scalingCenterY, 8, 0, Math.PI * 2)
-    ctx.fill()
-    
-    // Add text label
-    ctx.fillStyle = 'white'
-    ctx.font = '14px Arial'
-    ctx.textAlign = 'center'
-    ctx.fillText('SCALING CENTER', CANVAS_CONFIG.WIDTH / 2, scalingCenterY - 15)
-    
-    // Debug output every second
-    const currentTime = Date.now()
-    if (currentTime - lastDebugTime >= 1000 && debugTopRow && debugBottomRow) {
-      console.log(
-        `TOP: row=${debugTopRow.row} screenY=${Math.round(debugTopRow.screenY)} scale=${debugTopRow.scale.toFixed(3)} | ` +
-        `BOTTOM: row=${debugBottomRow.row} screenY=${Math.round(debugBottomRow.screenY)} scale=${debugBottomRow.scale.toFixed(3)}`
-      )
-      lastDebugTime = currentTime
-    }
-  }
 }
 
 export const getButtonPositions = () => {

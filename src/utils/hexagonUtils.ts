@@ -1,4 +1,3 @@
-import { createPerspectiveHexagonVertices } from './perspectiveUtils'
 
 export interface Hexagon {
   x: number
@@ -30,22 +29,12 @@ export const createPerspectiveHexagonPath = (
   centerX: number, 
   centerY: number, 
   size: number, 
-  gameAreaTop: number, 
-  gameAreaHeight: number
+  _gameAreaTop: number, 
+  _gameAreaHeight: number
 ): Path2D => {
-  const path = new Path2D()
-  const vertices = createPerspectiveHexagonVertices(centerX, centerY, size, gameAreaTop, gameAreaHeight)
-  
-  vertices.forEach((vertex, i) => {
-    if (i === 0) {
-      path.moveTo(vertex.x, vertex.y)
-    } else {
-      path.lineTo(vertex.x, vertex.y)
-    }
-  })
-  
-  path.closePath()
-  return path
+  // This is now implemented in perspectiveUtils.ts
+  // Just create a regular hexagon path here as fallback
+  return createHexagonPath(centerX, centerY, size)
 }
 
 export const calculateHexSize = (): number => {

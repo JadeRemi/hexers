@@ -1,6 +1,6 @@
 import { Hexagon } from './hexagonUtils'
 import { PERSPECTIVE_CONFIG } from '../config/constants'
-import { getPerspectiveScale } from './perspectiveUtils'
+import { applyPerspectiveTransform } from './perspectiveUtils'
 
 /**
  * Check if a point is within a perspective-transformed hexagon
@@ -19,22 +19,27 @@ export const isPointInPerspectiveHexagon = (
   const worldX = hex.x
   const worldY = hex.y + gameAreaTop
   
-  // Screen position after panning
-  const screenX = worldX + panOffset.x
-  const screenY = worldY + panOffset.y
-  
   if (PERSPECTIVE_CONFIG.STRENGTH <= 0) {
     // Non-perspective mode - simple check
+    const screenX = worldX + panOffset.x
+    const screenY = worldY + panOffset.y
     return isPointInRegularHexagon(mouseX, mouseY, screenX, screenY, hexSize)
   }
   
-  // Get scale at this screen position
-  const scale = getPerspectiveScale(screenY, gameAreaTop, gameAreaHeight)
+  // Use the unified perspective transformation - same as rendering
+  const transformed = applyPerspectiveTransform(
+    worldX,
+    worldY,
+    panOffset.x,
+    panOffset.y,
+    gameAreaTop,
+    gameAreaHeight
+  )
   
   // Transform mouse coordinates to scaled hexagon's local space
-  // The hexagon is rendered at screenX, screenY with scale applied
-  const localX = (mouseX - screenX) / scale
-  const localY = (mouseY - screenY) / scale
+  // The hexagon is rendered at transformed position with scale applied
+  const localX = (mouseX - transformed.screenX) / transformed.scale
+  const localY = (mouseY - transformed.screenY) / transformed.scale
   
   // Check if the transformed point is within a regular hexagon at origin
   return isPointInRegularHexagon(localX, localY, 0, 0, hexSize)
