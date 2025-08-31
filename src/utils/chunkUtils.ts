@@ -1,6 +1,5 @@
 import { Hexagon } from './hexagonUtils'
 import { CHUNK_CONFIG, CANVAS_CONFIG, HEXAGON_CONFIG } from '../config/constants'
-import { SeededRandom } from './seedUtils'
 
 export interface Chunk {
   x: number // Chunk X coordinate

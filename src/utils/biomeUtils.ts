@@ -1,4 +1,4 @@
-import { TerrainType, TERRAIN_TYPES, BIOME_CONFIG } from '../config/constants'
+import { TerrainType, BIOME_CONFIG } from '../config/constants'
 import { simplexNoise } from './noiseUtils'
 import { SeededRandom } from './seedUtils'
 

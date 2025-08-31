@@ -1,4 +1,4 @@
-import { HEXAGON_CONFIG, TEXTURE_CONFIG } from '../config/constants'
+import { HEXAGON_CONFIG } from '../config/constants'
 
 export const drawPixelatedHexagonBorder = (
   ctx: CanvasRenderingContext2D,

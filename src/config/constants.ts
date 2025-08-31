@@ -39,7 +39,7 @@ export const TEXTURE_CONFIG = {
 } as const
 
 export const PERSPECTIVE_CONFIG = {
-  STRENGTH: 0.0, // 0 = top-down, 1 = maximum perspective (temporarily disabled)
+  STRENGTH: 0.3, // 0 = top-down, 1 = maximum perspective
   HORIZON_Y: 0.3 // Y position (0-1) where perspective effect starts
 } as const
 

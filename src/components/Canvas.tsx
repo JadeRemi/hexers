@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { calculateCanvasSize } from '../utils/canvasUtils'
-import { isPointInHexagon, calculateHexSize } from '../utils/hexagonUtils'
+import { calculateHexSize } from '../utils/hexagonUtils'
+import { isPointInPerspectiveHexagon } from '../utils/perspectiveHoverUtils'
 import { getVisibleChunks, updateLoadedChunks, Chunk } from '../utils/chunkUtils'
 import { NoiseType } from '../utils/textureUtils'
 import { CANVAS_CONFIG } from '../config/constants'
@@ -13,7 +14,7 @@ import { buildOccupationMap, CellOccupation } from '../utils/unitUtils'
 import { setTerrainSeed } from '../utils/terrainUtils'
 import { GradientState, updateGradientRotation } from '../utils/animatedBorderUtils'
 import { clearChunkCache } from '../utils/chunkCacheUtils'
-import { setBoulderSeed, getBouldersInArea } from '../utils/boulderUtils'
+import { setBoulderSeed } from '../utils/boulderUtils'
 import { setWaterSeed } from '../utils/textureUtils'
 import './Canvas.css'
 
@@ -170,12 +171,12 @@ const Canvas: React.FC = () => {
 
     // Check if in game area
     if (y > gameAreaTop && y < CANVAS_CONFIG.HEIGHT - CANVAS_CONFIG.PANEL_HEIGHT) {
-      // Check for hexagon hover with pan offset
+      // Check for hexagon hover with perspective transformation
       let foundHex = false
       let hexIndex = 0
       for (const chunk of chunksRef.current.values()) {
         for (const hex of chunk.hexagons) {
-          if (isPointInHexagon(x - panOffset.x, y - gameAreaTop - panOffset.y, hex.x, hex.y, hexSize)) {
+          if (isPointInPerspectiveHexagon(x, y, hex, hexSize, panOffset, gameAreaTop, gameAreaHeight)) {
             hoveredHexRef.current = hexIndex
             foundHex = true
             canvas.style.cursor = 'pointer'
@@ -202,7 +203,7 @@ const Canvas: React.FC = () => {
         canvas.style.cursor = 'default'
       }
     }
-  }, [gameAreaTop, hexSize, panOffset])
+  }, [gameAreaTop, gameAreaHeight, hexSize, panOffset])
 
   const handleMouseUp = useCallback(() => {
     isPanningRef.current = false

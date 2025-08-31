@@ -1,4 +1,4 @@
-import { applyPerspective } from './perspectiveUtils'
+import { createPerspectiveHexagonVertices } from './perspectiveUtils'
 
 export interface Hexagon {
   x: number
@@ -34,20 +34,16 @@ export const createPerspectiveHexagonPath = (
   gameAreaHeight: number
 ): Path2D => {
   const path = new Path2D()
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 6
-    const localX = centerX + size * Math.cos(angle)
-    const localY = centerY + size * Math.sin(angle)
-    
-    // Apply perspective to each vertex
-    const { x, y } = applyPerspective(localX, localY, gameAreaTop, gameAreaHeight)
-    
+  const vertices = createPerspectiveHexagonVertices(centerX, centerY, size, gameAreaTop, gameAreaHeight)
+  
+  vertices.forEach((vertex, i) => {
     if (i === 0) {
-      path.moveTo(x, y)
+      path.moveTo(vertex.x, vertex.y)
     } else {
-      path.lineTo(x, y)
+      path.lineTo(vertex.x, vertex.y)
     }
-  }
+  })
+  
   path.closePath()
   return path
 }
@@ -58,14 +54,13 @@ export const calculateHexSize = (): number => {
 }
 
 export const generateHexGrid = (
-  rows: number,
   gap: number,
   canvasWidth: number,
   canvasHeight: number
 ): Hexagon[] => {
   const hexagons: Hexagon[] = []
   
-  const hexSize = calculateHexSize(rows, gap, canvasWidth, canvasHeight)
+  const hexSize = calculateHexSize()
   const hexWidth = Math.sqrt(3) * hexSize
   const hexHeight = 2 * hexSize
   

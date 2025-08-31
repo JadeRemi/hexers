@@ -1,18 +1,14 @@
 import { perlinNoise, simplexNoise, voronoiNoise, generateVoronoiPoints } from './noiseUtils'
-import { TEXTURE_CONFIG, TERRAIN_TYPES, TerrainType, CANVAS_CONFIG } from '../config/constants'
-import { SeededRandom } from './seedUtils'
-import { getPerspectiveNoiseCoords } from './perspectiveUtils'
+import { TEXTURE_CONFIG, TERRAIN_TYPES, TerrainType } from '../config/constants'
 
 export type NoiseType = 'perlin' | 'simplex' | 'voronoi'
 
 const voronoiPoints = generateVoronoiPoints(200, 2000, 2000)
 
 let waterSeed: string = ''
-let waterRandom: SeededRandom | null = null
 
 export const setWaterSeed = (seed: string): void => {
   waterSeed = seed + '_water'
-  waterRandom = new SeededRandom(waterSeed)
 }
 
 /**
@@ -152,8 +148,12 @@ const hslToRgb = (h: number, s: number, l: number): { r: number; g: number; b: n
 export const getWaterNoiseValue = (x: number, y: number, noiseType: NoiseType, timestamp: number = 0): number => {
   // Add time-based scrolling offset for water
   const scrollOffset = timestamp * TEXTURE_CONFIG.WATER_SCROLL_SPEED
-  const waterX = x + scrollOffset * 0.7 // Diagonal movement
-  const waterY = y + scrollOffset * 0.3
+  
+  // Add seed-based offset for variation
+  const seedOffset = waterSeed.length > 0 ? waterSeed.charCodeAt(0) * 37 : 0
+  
+  const waterX = x + scrollOffset * 0.7 + seedOffset // Diagonal movement
+  const waterY = y + scrollOffset * 0.3 + seedOffset
   
   let noiseValue: number
   
@@ -234,15 +234,13 @@ export const renderHexagonTexture = (
   size: number,
   noiseType: NoiseType,
   terrainType: TerrainType,
-  timestamp: number = 0,
-  gameAreaTop: number = 0,
-  gameAreaHeight: number = CANVAS_CONFIG.HEIGHT
+  timestamp: number = 0
 ): void => {
   const pixelSize = TEXTURE_CONFIG.PIXELATION_SIZE
   const hexWidth = Math.sqrt(3) * size
   
   ctx.save()
-  ctx.imageSmoothingEnabled = false
+  ctx.imageSmoothingEnabled = true
   
   // Calculate bounds to cover the entire hexagon
   const startX = Math.floor((centerX - hexWidth / 2) / pixelSize) * pixelSize
@@ -259,20 +257,18 @@ export const renderHexagonTexture = (
       if (isPointInHexagon(checkX, checkY, centerX, centerY, size)) {
         let noiseValue: number
         
-        // Apply perspective to noise coordinates
-        const perspectiveCoords = getPerspectiveNoiseCoords(px, py, gameAreaTop, gameAreaHeight)
-        
         // Use scrolling noise for water, regular noise for other terrains
         if (terrainType === 'water') {
-          noiseValue = getWaterNoiseValue(perspectiveCoords.x, perspectiveCoords.y, noiseType, timestamp)
+          noiseValue = getWaterNoiseValue(px, py, noiseType, timestamp)
         } else {
-          noiseValue = getPixelatedNoiseValue(perspectiveCoords.x, perspectiveCoords.y, noiseType)
+          noiseValue = getPixelatedNoiseValue(px, py, noiseType)
         }
         
         const color = getTerrainColor(noiseValue, terrainType)
         
         ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`
-        ctx.fillRect(px, py, pixelSize, pixelSize)
+        // Add 1 pixel overlap to avoid gaps between pixels
+        ctx.fillRect(px, py, pixelSize + 1, pixelSize + 1)
       }
     }
   }

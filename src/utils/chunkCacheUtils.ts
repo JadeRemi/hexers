@@ -1,6 +1,6 @@
 import { Chunk } from './chunkUtils'
 import { NoiseType } from './textureUtils'
-import { TEXTURE_CONFIG, CHUNK_CONFIG, HEXAGON_CONFIG } from '../config/constants'
+import { CHUNK_CONFIG, HEXAGON_CONFIG } from '../config/constants'
 import { renderHexagonTexture } from './textureUtils'
 import { getTerrainForHexagon } from './terrainUtils'
 
@@ -13,8 +13,7 @@ interface ChunkCanvas {
 const chunkCanvasCache = new Map<string, ChunkCanvas>()
 const MAX_CACHED_CHUNKS = 50
 
-export const getChunkCacheKey = (chunkX: number, chunkY: number, noiseType: NoiseType, timestamp: number = 0): string => {
-  // Temporarily disable timestamp-based cache keys to debug
+export const getChunkCacheKey = (chunkX: number, chunkY: number, noiseType: NoiseType): string => {
   return `${chunkX}_${chunkY}_${noiseType}`
 }
 
@@ -22,11 +21,9 @@ export const renderChunkToCanvas = (
   chunk: Chunk,
   hexSize: number,
   noiseType: NoiseType,
-  timestamp: number = 0,
-  gameAreaTop: number = 0,
-  gameAreaHeight: number = 1080
+  timestamp: number = 0
 ): HTMLCanvasElement => {
-  const cacheKey = getChunkCacheKey(chunk.x, chunk.y, noiseType, timestamp)
+  const cacheKey = getChunkCacheKey(chunk.x, chunk.y, noiseType)
   
   if (chunkCanvasCache.has(cacheKey)) {
     return chunkCanvasCache.get(cacheKey)!.canvas
@@ -47,7 +44,7 @@ export const renderChunkToCanvas = (
   canvas.height = Math.ceil(chunkPixelHeight)
   
   const ctx = canvas.getContext('2d')!
-  ctx.imageSmoothingEnabled = false
+  ctx.imageSmoothingEnabled = true
   
   // Find bounds of all hexagons in chunk
   let minX = Infinity, minY = Infinity
@@ -69,7 +66,7 @@ export const renderChunkToCanvas = (
     const localY = hex.y - minY
     
     ctx.save()
-    renderHexagonTexture(ctx, localX, localY, hexSize, noiseType, terrainType, timestamp, gameAreaTop, gameAreaHeight)
+    renderHexagonTexture(ctx, localX, localY, hexSize, noiseType, terrainType, timestamp)
     ctx.restore()
   }
   
@@ -92,7 +89,6 @@ export const clearChunkCache = (): void => {
 }
 
 export const getChunkBounds = (chunk: Chunk, hexSize: number) => {
-  const gap = HEXAGON_CONFIG.CELL_GAP
   const hexWidth = Math.sqrt(3) * hexSize
   
   let minX = Infinity, minY = Infinity

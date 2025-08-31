@@ -1,8 +1,8 @@
 import { palette, typography } from '../theme'
 import { SPRITES } from '../assets'
-import { SPRITE_CONFIG, CANVAS_CONFIG } from '../config/constants'
+import { SPRITE_CONFIG, CANVAS_CONFIG, PERSPECTIVE_CONFIG } from '../config/constants'
 import { Hexagon } from './hexagonUtils'
-import { applyPerspective } from './perspectiveUtils'
+import { getPerspectiveScale } from './perspectiveUtils'
 
 export interface Star {
   x: number
@@ -43,8 +43,8 @@ export const drawUnits = (
     
     if (hex) {
       let image: HTMLImageElement | undefined
-      let sourceWidth: number
-      let sourceHeight: number
+      let sourceWidth: number = 1
+      let sourceHeight: number = 1
       
       if (unit.type === 'wizard') {
         image = sprites['wizard1']
@@ -57,16 +57,24 @@ export const drawUnits = (
       }
       
       if (image) {
-        // Apply perspective to hex position and size
-        const { x: perspectiveX, y: perspectiveY, scale } = applyPerspective(hex.x, hex.y, gameAreaTop, gameAreaHeight)
+        // Units need to match the perspective system used for hexagons
+        // Remember: we're inside a context translated by panOffset
+        
+        let scale = 1
+        if (PERSPECTIVE_CONFIG.STRENGTH > 0) {
+          // Calculate where this unit appears on screen (world pos + pan offset handled by context)
+          // hex.y already includes gameAreaTop from adjustedHexagons
+          const screenY = hex.y // This will be translated by panOffset.y by the context
+          scale = getPerspectiveScale(screenY, gameAreaTop, gameAreaHeight)
+        }
         
         const hexWidth = Math.sqrt(3) * hexSize * scale
         const spriteWidth = hexWidth * SPRITE_CONFIG.UNIT_SCALE
         const spriteHeight = (spriteWidth / sourceWidth) * sourceHeight
         
-        // Position sprite so its bottom center is at the perspective-adjusted cell center
-        const x = perspectiveX - spriteWidth / 2
-        const y = perspectiveY - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
+        // Position sprite at hex center (context translation will apply panOffset)
+        const x = hex.x - spriteWidth / 2
+        const y = hex.y - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
         
         ctx.drawImage(
           image,
