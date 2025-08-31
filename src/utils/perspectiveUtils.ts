@@ -10,44 +10,35 @@ export const applyPerspectiveTransform = (
   panOffsetX: number,
   panOffsetY: number,
   gameAreaTop: number,
-  gameAreaHeight: number
+  gameAreaHeight: number,
+  strength: number = PERSPECTIVE_CONFIG.STRENGTH
 ): { screenX: number, screenY: number, scale: number } => {
-  if (PERSPECTIVE_CONFIG.STRENGTH <= 0) {
-    return {
-      screenX: worldX + panOffsetX,
-      screenY: worldY + panOffsetY,
-      scale: 1
-    }
-  }
-
   const viewportCenterX = CANVAS_CONFIG.WIDTH / 2
-  const viewportCenterY = gameAreaTop + gameAreaHeight / 2
   
   // First apply pan to get screen position
   const screenX = worldX + panOffsetX
   const screenY = worldY + panOffsetY
   
   // Calculate scale based on screen Y position (viewport-based)
+  // At strength 0, scale should be 1.0 everywhere (no perspective)
+  // At higher strength, scale varies from small at top to large at bottom
   const normalizedY = Math.max(0, Math.min(1, (screenY - gameAreaTop) / gameAreaHeight))
-  const scale = 0.3 + (normalizedY * 0.7)
+  const scaleVariation = 0.7 * strength // How much scale varies (0 when strength=0)
+  const scale = 1 - scaleVariation + (normalizedY * scaleVariation)
   
-  // For perspective Y position, we want to:
-  // 1. Spread rows across the full viewport height
-  // 2. Compress more at the top, less at the bottom
-  // 3. Use the top of the viewport as the vanishing area
-  
-  // Shift the compression reference point upward to spread rows better
-  // This makes rows fill the viewport from top to bottom
-  const compressionCenterY = gameAreaTop + gameAreaHeight * 0.2  // Shifted up from center
+  // Y compression: at strength 0, no compression (perspectiveY = screenY)
+  // At higher strength, compress toward compression center
+  const compressionCenterY = gameAreaTop + gameAreaHeight * 0.2
   const yDistFromCompressionCenter = screenY - compressionCenterY
   
-  // Apply perspective scaling with an exponent for non-linear compression
-  const yCompressionScale = Math.pow(scale, 1.5)  // More aggressive compression at top
-  const perspectiveY = compressionCenterY + yDistFromCompressionCenter * yCompressionScale
+  // Compression factor smoothly scales from 1.0 (no compression) to more compression
+  const compressionFactor = 1 - (strength * 0.5 * (1 - scale))
+  const perspectiveY = compressionCenterY + yDistFromCompressionCenter * compressionFactor
   
-  // Apply horizontal convergence
-  const xDistFromCenter = screenX - viewportCenterX  
-  const convergenceFactor = (1 - normalizedY) * PERSPECTIVE_CONFIG.STRENGTH * 0.5
+  // Horizontal convergence: at strength 0, no convergence (perspectiveX = screenX)
+  // At higher strength, converge toward center based on Y position
+  const xDistFromCenter = screenX - viewportCenterX
+  const convergenceFactor = (1 - normalizedY) * strength * 0.5
   const perspectiveX = viewportCenterX + xDistFromCenter * (1 - convergenceFactor)
   
   return {
@@ -117,7 +108,7 @@ export const applyViewportPerspective = (
 
 /**
  * Create perspective-distorted hexagon path
- * Path is created at origin (0,0) for use with translate
+ * Creates a trapezoidally distorted hexagon to simulate viewing angle
  */
 export const createPerspectiveHexagonPath = (
   centerX: number,
@@ -125,43 +116,50 @@ export const createPerspectiveHexagonPath = (
   size: number,
   scale: number,
   gameAreaTop: number,
-  gameAreaHeight: number
+  gameAreaHeight: number,
+  strength: number = PERSPECTIVE_CONFIG.STRENGTH
 ): Path2D => {
   const path = new Path2D()
   
-  // Calculate convergence based on Y position
-  const screenCenterX = CANVAS_CONFIG.WIDTH / 2
-  const normalizedY = Math.max(0, Math.min(1, (centerY - gameAreaTop) / gameAreaHeight))
-  
-  // Stronger convergence at top, less at bottom
-  const convergenceFactor = (1 - normalizedY) * PERSPECTIVE_CONFIG.STRENGTH
-  
-  // Distance from center for skewing
-  const distFromCenterX = (centerX - screenCenterX) / CANVAS_CONFIG.WIDTH
+  // Vanishing point is at the top center of the screen
+  const vanishingX = CANVAS_CONFIG.WIDTH / 2
   
   for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 6
+    const angle = (Math.PI / 3) * i // Remove -π/6 to rotate from pointy-top to flat-top
     
-    // Base vertex position with scale applied to size
-    let x = size * Math.cos(angle) * scale
-    let y = size * Math.sin(angle) * scale
+    // Base vertex position
+    const baseX = size * Math.cos(angle)
+    const baseY = size * Math.sin(angle)
     
-    // Apply horizontal skewing for convergence
-    // Vertices on the sides should converge more than top/bottom vertices
-    const isVerticalEdge = Math.abs(Math.cos(angle)) < 0.5
+    // Calculate Y position of this vertex in screen space
+    const vertexScreenY = centerY + baseY * scale
+    const vertexNormalizedY = Math.max(0, Math.min(1, (vertexScreenY - gameAreaTop) / gameAreaHeight))
     
-    if (isVerticalEdge) {
-      // For mostly vertical edges, apply stronger convergence
-      x = x * (1 - convergenceFactor * 0.4) + distFromCenterX * size * convergenceFactor * 0.3
-    } else {
-      // For horizontal edges, apply less convergence
-      x = x * (1 - convergenceFactor * 0.2)
-    }
+    // Different scale for top vs bottom of hexagon
+    // This creates the trapezoidal distortion
+    // At strength 0, vertexPerspectiveScale should be 1.0 everywhere (no distortion)
+    const scaleVariation = 0.7 * strength
+    const vertexPerspectiveScale = 1 - scaleVariation + (vertexNormalizedY * scaleVariation)
+    
+    // Apply X convergence toward vanishing point
+    // At strength 0, no convergence (convergedX = centerX + baseX * scale)
+    const xDistFromVanishing = (centerX + baseX * scale) - vanishingX
+    const convergenceAmount = (1 - vertexNormalizedY) * strength * 0.5
+    const convergedX = vanishingX + xDistFromVanishing * (1 - convergenceAmount)
+    
+    // Apply Y compression - stronger at top
+    // At strength 0, no compression (compressedY = baseY * scale)
+    const yCompressionFactor = 1 - (strength * 0.4 * (1 - vertexPerspectiveScale))
+    const compressedY = baseY * scale * yCompressionFactor
+    
+    // Convert to local coordinates (relative to translate origin at centerX, centerY)
+    const localX = convergedX - centerX
+    const localY = compressedY
     
     if (i === 0) {
-      path.moveTo(x, y)
+      path.moveTo(localX, localY)
     } else {
-      path.lineTo(x, y)
+      path.lineTo(localX, localY)
     }
   }
   

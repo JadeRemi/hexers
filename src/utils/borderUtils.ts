@@ -15,7 +15,7 @@ export const drawPixelatedHexagonBorder = (
   // Simple stroked hexagon path - much faster than pixel-by-pixel
   ctx.beginPath()
   for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 6
+    const angle = (Math.PI / 3) * i // Remove -π/6 to rotate from pointy-top to flat-top
     const x = centerX + size * Math.cos(angle)
     const y = centerY + size * Math.sin(angle)
     

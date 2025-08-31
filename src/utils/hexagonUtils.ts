@@ -1,4 +1,6 @@
 
+import { HEXAGON_CONFIG } from '../config/constants'
+
 export interface Hexagon {
   x: number
   y: number
@@ -12,7 +14,7 @@ export interface Hexagon {
 export const createHexagonPath = (centerX: number, centerY: number, size: number): Path2D => {
   const path = new Path2D()
   for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 6
+    const angle = (Math.PI / 3) * i // Remove -π/6 to rotate from pointy-top to flat-top
     const x = centerX + size * Math.cos(angle)
     const y = centerY + size * Math.sin(angle)
     if (i === 0) {
@@ -38,8 +40,8 @@ export const createPerspectiveHexagonPath = (
 }
 
 export const calculateHexSize = (): number => {
-  // Fixed hex size for infinite field with gaps
-  return 35
+  // Use configured hex size
+  return HEXAGON_CONFIG.SIZE
 }
 
 export const generateHexGrid = (
@@ -105,9 +107,13 @@ export const isPointInHexagon = (
   const dx = Math.abs(px - hexX)
   const dy = Math.abs(py - hexY)
   
+  // Quick rectangular bounds check for horizontal hexagon (flat-top)
+  // Width = size * 2, Height = size * sqrt(3)  
   if (dx > size || dy > size * Math.sqrt(3) / 2) {
     return false
   }
   
-  return dx / size + dy / (size * Math.sqrt(3)) <= 1
+  // Hexagon edge check for horizontal orientation
+  const sqrt3 = Math.sqrt(3)
+  return dx <= size - dy / sqrt3
 }

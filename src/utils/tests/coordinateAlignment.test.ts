@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getPerspectiveScale } from './perspectiveUtils'
+import { getPerspectiveScale } from '../perspectiveUtils'
 
 describe('Coordinate Alignment Tests', () => {
   const gameAreaTop = 100

@@ -6,6 +6,7 @@ export const CANVAS_CONFIG = {
 } as const
 
 export const HEXAGON_CONFIG = {
+  SIZE: 60, // Base hexagon size (radius) - increased from 45 to fit fewer rows on screen
   BORDER_WIDTH: 8,
   CELL_GAP: 48, // Increased 4x from 12 to 48
   GRADIENT_ROTATION_SPEED: 0.002 // radians per millisecond (doubled from 0.001)
@@ -28,7 +29,7 @@ export const STARS_CONFIG = {
 } as const
 
 export const TEXTURE_CONFIG = {
-  PIXELATION_SIZE: 8,
+  PIXELATION_SIZE: 16,  // Increased from 12 for better performance
   NOISE_SCALE: 0.05,
   NOISE_ZOOM: 0.03,
   VORONOI_ZOOM_MULTIPLIER: 0.3, // Makes voronoi more zoomed out (smaller value = more zoomed out)
@@ -39,8 +40,9 @@ export const TEXTURE_CONFIG = {
 } as const
 
 export const PERSPECTIVE_CONFIG = {
-  STRENGTH: 0.3, // 0 = top-down, 1 = maximum perspective
-  HORIZON_Y: 0.3 // Y position (0-1) where perspective effect starts
+  STRENGTH: 0.001, // 0 = top-down, 1 = maximum perspective (minimal for proper row count)
+  HORIZON_Y: 0.3, // Y position (0-1) where perspective effect starts
+  TARGET_VISIBLE_ROWS: 12 // Target number of rows to be visible on screen
 } as const
 
 export const TERRAIN_TYPES = {

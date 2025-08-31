@@ -1,5 +1,5 @@
 import { Hexagon } from './hexagonUtils'
-import { PERSPECTIVE_CONFIG } from '../config/constants'
+import { PERSPECTIVE_CONFIG, CANVAS_CONFIG } from '../config/constants'
 import { applyPerspectiveTransform } from './perspectiveUtils'
 
 /**
@@ -13,18 +13,14 @@ export const isPointInPerspectiveHexagon = (
   hexSize: number,
   panOffset: { x: number, y: number },
   gameAreaTop: number,
-  gameAreaHeight: number
+  gameAreaHeight: number,
+  perspectiveStrength: number = PERSPECTIVE_CONFIG.STRENGTH
 ): boolean => {
   // World position
   const worldX = hex.x
   const worldY = hex.y + gameAreaTop
   
-  if (PERSPECTIVE_CONFIG.STRENGTH <= 0) {
-    // Non-perspective mode - simple check
-    const screenX = worldX + panOffset.x
-    const screenY = worldY + panOffset.y
-    return isPointInRegularHexagon(mouseX, mouseY, screenX, screenY, hexSize)
-  }
+  // Always use the unified perspective transformation for consistency
   
   // Use the unified perspective transformation - same as rendering
   const transformed = applyPerspectiveTransform(
@@ -33,16 +29,31 @@ export const isPointInPerspectiveHexagon = (
     panOffset.x,
     panOffset.y,
     gameAreaTop,
-    gameAreaHeight
+    gameAreaHeight,
+    perspectiveStrength
   )
   
-  // Transform mouse coordinates to scaled hexagon's local space
-  // The hexagon is rendered at transformed position with scale applied
-  const localX = (mouseX - transformed.screenX) / transformed.scale
-  const localY = (mouseY - transformed.screenY) / transformed.scale
+  // Check if mouse is within the distorted hexagon
+  // We need to check against the actual distorted shape, not a regular hexagon
+  const vertexScreenY = mouseY
+  const vertexNormalizedY = Math.max(0, Math.min(1, (vertexScreenY - gameAreaTop) / gameAreaHeight))
+  const vertexPerspectiveScale = 0.3 + (vertexNormalizedY * 0.7)
   
-  // Check if the transformed point is within a regular hexagon at origin
-  return isPointInRegularHexagon(localX, localY, 0, 0, hexSize)
+  // Calculate mouse position relative to hexagon center
+  const relY = mouseY - transformed.screenY
+  
+  // Account for the Y compression in the distorted shape
+  const yCompressionFactor = vertexPerspectiveScale * 0.6
+  const uncompressedY = relY / yCompressionFactor
+  
+  // Account for X convergence
+  const vanishingX = CANVAS_CONFIG.WIDTH / 2
+  const xDistFromVanishing = mouseX - vanishingX
+  const unconvergedXDist = xDistFromVanishing / vertexPerspectiveScale
+  const unconvergedX = vanishingX + unconvergedXDist - transformed.screenX
+  
+  // Check if the unconverged point is within a regular hexagon
+  return isPointInRegularHexagon(unconvergedX, uncompressedY, 0, 0, hexSize * transformed.scale)
 }
 
 /**
@@ -58,12 +69,13 @@ const isPointInRegularHexagon = (
   const dx = Math.abs(px - hexX)
   const dy = Math.abs(py - hexY)
   
-  // Quick rectangular bounds check
-  if (dx > size * Math.sqrt(3) / 2 || dy > size) {
+  // Quick rectangular bounds check for horizontal hexagon (flat-top)
+  // Width = size * 2, Height = size * sqrt(3)
+  if (dx > size || dy > size * Math.sqrt(3) / 2) {
     return false
   }
   
-  // Hexagon edge check
+  // Hexagon edge check for horizontal orientation
   const sqrt3 = Math.sqrt(3)
-  return dy <= size - dx / sqrt3
+  return dx <= size - dy / sqrt3
 }

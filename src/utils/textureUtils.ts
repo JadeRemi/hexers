@@ -237,39 +237,37 @@ export const renderHexagonTexture = (
   timestamp: number = 0
 ): void => {
   const pixelSize = TEXTURE_CONFIG.PIXELATION_SIZE
-  const hexWidth = Math.sqrt(3) * size
   
   ctx.save()
   ctx.imageSmoothingEnabled = true
   
-  // Calculate bounds to cover the entire hexagon
-  const startX = Math.floor((centerX - hexWidth / 2) / pixelSize) * pixelSize
-  const endX = Math.ceil((centerX + hexWidth / 2) / pixelSize) * pixelSize
-  const startY = Math.floor((centerY - size) / pixelSize) * pixelSize
-  const endY = Math.ceil((centerY + size) / pixelSize) * pixelSize
+  // Simplified rendering for performance - render a square that will be clipped
+  const area = size * 2
+  const startX = -area
+  const endX = area
+  const startY = -area
+  const endY = area
   
+  // Reduce number of pixels for performance
   for (let px = startX; px <= endX; px += pixelSize) {
     for (let py = startY; py <= endY; py += pixelSize) {
-      // Check if pixel center is inside hexagon
-      const checkX = px + pixelSize / 2
-      const checkY = py + pixelSize / 2
+      let noiseValue: number
       
-      if (isPointInHexagon(checkX, checkY, centerX, centerY, size)) {
-        let noiseValue: number
-        
-        // Use scrolling noise for water, regular noise for other terrains
-        if (terrainType === 'water') {
-          noiseValue = getWaterNoiseValue(px, py, noiseType, timestamp)
-        } else {
-          noiseValue = getPixelatedNoiseValue(px, py, noiseType)
-        }
-        
-        const color = getTerrainColor(noiseValue, terrainType)
-        
-        ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`
-        // Add 1 pixel overlap to avoid gaps between pixels
-        ctx.fillRect(px, py, pixelSize + 1, pixelSize + 1)
+      // Use world coordinates for noise consistency
+      const worldX = centerX + px
+      const worldY = centerY + py
+      
+      // Use scrolling noise for water, regular noise for other terrains
+      if (terrainType === 'water') {
+        noiseValue = getWaterNoiseValue(worldX, worldY, noiseType, timestamp)
+      } else {
+        noiseValue = getPixelatedNoiseValue(worldX, worldY, noiseType)
       }
+      
+      const color = getTerrainColor(noiseValue, terrainType)
+      
+      ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`
+      ctx.fillRect(px, py, pixelSize + 1, pixelSize + 1)
     }
   }
   

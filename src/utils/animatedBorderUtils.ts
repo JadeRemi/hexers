@@ -49,7 +49,7 @@ export const drawAnimatedHexagonBorder = (
   // Calculate the vertices of the hexagon
   const vertices: Array<[number, number]> = []
   for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 6
+    const angle = (Math.PI / 3) * i // Remove -π/6 to rotate from pointy-top to flat-top
     const x = centerX + size * Math.cos(angle)
     const y = centerY + size * Math.sin(angle)
     vertices.push([x, y])

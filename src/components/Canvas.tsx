@@ -43,6 +43,7 @@ const Canvas: React.FC = () => {
   })
   const [currentNoiseType, setCurrentNoiseType] = useState<NoiseType>('simplex')
   const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 })
+  const [perspectiveStrength, setPerspectiveStrength] = useState<number>(0.3)
   
   const gameAreaTop = CANVAS_CONFIG.PANEL_HEIGHT
   const gameAreaHeight = CANVAS_CONFIG.HEIGHT - (CANVAS_CONFIG.PANEL_HEIGHT * 2)
@@ -84,14 +85,15 @@ const Canvas: React.FC = () => {
         hexSize,
         panOffset,
         gradientRotation,
-        timestamp
+        timestamp,
+        perspectiveStrength
       )
       
       lastFrameTimeRef.current = timestamp - (deltaTime % frameTime)
     }
 
     animationFrameRef.current = requestAnimationFrame(render)
-  }, [currentNoiseType, gameAreaTop, gameAreaHeight, hexSize, panOffset])
+  }, [currentNoiseType, gameAreaTop, gameAreaHeight, hexSize, panOffset, perspectiveStrength])
 
   const toggleFullscreen = useCallback(() => {
     const element = containerRef.current
@@ -119,6 +121,18 @@ const Canvas: React.FC = () => {
     const y = (event.clientY - rect.top) * scaleY
     
     const buttons = getButtonPositions()
+    
+    // Check perspective decrement button
+    if (isPointInButton(x, y, buttons.perspectiveDec.x, buttons.perspectiveDec.y, buttons.perspectiveDec.width, buttons.perspectiveDec.height)) {
+      setPerspectiveStrength(prev => Math.max(0, prev - 0.05))
+      return
+    }
+    
+    // Check perspective increment button
+    if (isPointInButton(x, y, buttons.perspectiveInc.x, buttons.perspectiveInc.y, buttons.perspectiveInc.width, buttons.perspectiveInc.height)) {
+      setPerspectiveStrength(prev => Math.min(1, prev + 0.05))
+      return
+    }
     
     // Check noise button
     if (isPointInButton(x, y, buttons.noise.x, buttons.noise.y, buttons.noise.width, buttons.noise.height)) {
@@ -176,7 +190,7 @@ const Canvas: React.FC = () => {
       let hexIndex = 0
       for (const chunk of chunksRef.current.values()) {
         for (const hex of chunk.hexagons) {
-          if (isPointInPerspectiveHexagon(x, y, hex, hexSize, panOffset, gameAreaTop, gameAreaHeight)) {
+          if (isPointInPerspectiveHexagon(x, y, hex, hexSize, panOffset, gameAreaTop, gameAreaHeight, perspectiveStrength)) {
             hoveredHexRef.current = hexIndex
             foundHex = true
             canvas.style.cursor = 'pointer'
@@ -197,13 +211,15 @@ const Canvas: React.FC = () => {
       // Check buttons
       const buttons = getButtonPositions()
       if (isPointInButton(x, y, buttons.noise.x, buttons.noise.y, buttons.noise.width, buttons.noise.height) ||
-          isPointInButton(x, y, buttons.fullscreen.x, buttons.fullscreen.y, buttons.fullscreen.width, buttons.fullscreen.height)) {
+          isPointInButton(x, y, buttons.fullscreen.x, buttons.fullscreen.y, buttons.fullscreen.width, buttons.fullscreen.height) ||
+          isPointInButton(x, y, buttons.perspectiveDec.x, buttons.perspectiveDec.y, buttons.perspectiveDec.width, buttons.perspectiveDec.height) ||
+          isPointInButton(x, y, buttons.perspectiveInc.x, buttons.perspectiveInc.y, buttons.perspectiveInc.width, buttons.perspectiveInc.height)) {
         canvas.style.cursor = 'pointer'
       } else {
         canvas.style.cursor = 'default'
       }
     }
-  }, [gameAreaTop, gameAreaHeight, hexSize, panOffset])
+  }, [gameAreaTop, gameAreaHeight, hexSize, panOffset, perspectiveStrength])
 
   const handleMouseUp = useCallback(() => {
     isPanningRef.current = false
