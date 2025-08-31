@@ -133,3 +133,25 @@ export const updateLoadedChunks = (
   
   return newChunks
 }
+
+/**
+ * Calculate the world position of a hexagon at given grid coordinates
+ */
+export const getHexagonWorldPosition = (
+  gridRow: number,
+  gridCol: number,
+  hexSize: number
+): { x: number, y: number } => {
+  const gap = 12
+  const hexWidth = Math.sqrt(3) * hexSize
+  const hexHeight = hexSize * 2
+  
+  const horizontalSpacing = hexWidth + gap
+  const verticalSpacing = hexHeight * 0.75 + gap
+  
+  const xOffset = (gridRow % 2) * (horizontalSpacing / 2)
+  const x = gridCol * horizontalSpacing + xOffset + hexWidth / 2
+  const y = gridRow * verticalSpacing + hexSize
+  
+  return { x, y }
+}

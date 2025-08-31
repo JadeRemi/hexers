@@ -10,6 +10,7 @@ import { getTerrainForHexagon } from './terrainUtils'
 import { drawButton, drawStars, drawUnits } from './canvasDrawUtils'
 import { Star, Unit } from './canvasDrawUtils'
 import { renderChunkToCanvas, getChunkBounds } from './chunkCacheUtils'
+import { getBouldersInArea } from './boulderUtils'
 
 export interface PanOffset {
   x: number
@@ -161,14 +162,27 @@ export const renderFrame = (
   
   drawChunks(ctx, chunks, hoveredHexIndex, currentNoiseType, gameAreaTop, hexSize, panOffset, gradientRotation)
   
-  // Draw units with adjusted position and pan offset
+  // Draw units (including boulders) with adjusted position and pan offset
   ctx.save()
   ctx.translate(panOffset.x, panOffset.y)
   
   // Collect all hexagons for units
   const allHexagons: Hexagon[] = []
+  let minRow = Infinity, maxRow = -Infinity, minCol = Infinity, maxCol = -Infinity
+  
   for (const chunk of chunks.values()) {
     allHexagons.push(...chunk.hexagons)
+    for (const hex of chunk.hexagons) {
+      minRow = Math.min(minRow, hex.gridRow)
+      maxRow = Math.max(maxRow, hex.gridRow)
+      minCol = Math.min(minCol, hex.gridCol)
+      maxCol = Math.max(maxCol, hex.gridCol)
+    }
+  }
+  
+  if (allHexagons.length === 0) {
+    ctx.restore()
+    return
   }
   
   const adjustedHexagons = allHexagons.map(hex => ({
@@ -176,7 +190,20 @@ export const renderFrame = (
     y: hex.y + gameAreaTop
   }))
   
-  drawUnits(ctx, units, adjustedHexagons, sprites, hexSize)
+  // Get boulders for visible area and convert to units
+  const boulders = getBouldersInArea(minRow, maxRow, minCol, maxCol)
+  const boulderUnits: Unit[] = boulders.map(boulder => ({
+    type: 'boulder',
+    gridRow: boulder.row,
+    gridCol: boulder.col,
+    sprite: 'boulder'
+  }))
+  
+  
+  // Combine regular units with boulder units
+  const allUnits = [...units, ...boulderUnits]
+  
+  drawUnits(ctx, allUnits, adjustedHexagons, sprites, hexSize)
   ctx.restore()
   
   ctx.restore()

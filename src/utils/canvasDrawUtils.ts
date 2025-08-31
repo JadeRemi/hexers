@@ -32,6 +32,7 @@ export const drawUnits = (
   sprites: { [key: string]: HTMLImageElement },
   hexSize: number
 ): void => {
+  
   for (const unit of units) {
     const hex = hexagons.find(h => 
       h.gridRow === unit.gridRow && h.gridCol === unit.gridCol
@@ -60,6 +61,7 @@ export const drawUnits = (
         // Position sprite so its bottom center is at the cell center
         const x = hex.x - spriteWidth / 2
         const y = hex.y - spriteHeight + SPRITE_CONFIG.UNIT_VERTICAL_OFFSET
+        
         
         ctx.drawImage(
           image,

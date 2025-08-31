@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { calculateCanvasSize } from '../utils/canvasUtils'
 import { isPointInHexagon, calculateHexSize } from '../utils/hexagonUtils'
-import { getVisibleChunks, updateLoadedChunks, Chunk } from '../utils/chunkUtils'
+import { getVisibleChunks, updateLoadedChunks, Chunk, getHexagonWorldPosition } from '../utils/chunkUtils'
 import { NoiseType } from '../utils/textureUtils'
 import { CANVAS_CONFIG } from '../config/constants'
 import { loadImage, SPRITES } from '../assets'
@@ -9,10 +9,11 @@ import { Star, Unit, isPointInButton } from '../utils/canvasDrawUtils'
 import { generateStars } from '../utils/starUtils'
 import { renderFrame, getButtonPositions, PanOffset } from '../utils/canvasRenderUtils'
 import { generateSeed } from '../utils/seedUtils'
-import { generateBoulderPlacements, buildOccupationMap, CellOccupation } from '../utils/unitUtils'
+import { buildOccupationMap, CellOccupation } from '../utils/unitUtils'
 import { setTerrainSeed } from '../utils/terrainUtils'
 import { GradientState, updateGradientRotation } from '../utils/animatedBorderUtils'
 import { clearChunkCache } from '../utils/chunkCacheUtils'
+import { setBoulderSeed, getBouldersInArea } from '../utils/boulderUtils'
 import './Canvas.css'
 
 const Canvas: React.FC = () => {
@@ -246,8 +247,9 @@ const Canvas: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    // Set terrain seed
+    // Set terrain and boulder seeds
     setTerrainSeed(seedRef.current)
+    setBoulderSeed(seedRef.current)
     
     // Generate stars
     starsRef.current = generateStars()
@@ -267,20 +269,35 @@ const Canvas: React.FC = () => {
     console.log(`Session seed: ${seedRef.current}`)
   }, [])
   
+  // Initialize camera position to center on cell (1,1)
+  useEffect(() => {
+    const wizardPos = getHexagonWorldPosition(1, 1, hexSize)
+    const centerX = CANVAS_CONFIG.WIDTH / 2
+    const centerY = gameAreaTop + gameAreaHeight / 2
+    
+    const initialPanOffset = {
+      x: centerX - wizardPos.x,
+      y: centerY - wizardPos.y
+    }
+    
+    setPanOffset(initialPanOffset)
+  }, [hexSize, gameAreaTop, gameAreaHeight])
+  
   // Initialize chunks on mount
   useEffect(() => {
-    const visibleChunks = getVisibleChunks(0, 0, hexSize, gameAreaHeight)
+    const visibleChunks = getVisibleChunks(panOffset.x, panOffset.y, hexSize, gameAreaHeight)
     chunksRef.current = updateLoadedChunks(new Map(), visibleChunks, hexSize)
-  }, [hexSize, gameAreaHeight])
+  }, [hexSize, gameAreaHeight, panOffset.x, panOffset.y])
   
   // Initialize wizard unit once
   useEffect(() => {
     unitsRef.current = [{
       type: 'wizard',
-      gridRow: 0,
-      gridCol: 0,
+      gridRow: 1,
+      gridCol: 1,
       sprite: 'wizard1'
     }]
+    // Note: boulder occupation will be calculated dynamically
     occupationRef.current = buildOccupationMap(unitsRef.current)
   }, [])
   
