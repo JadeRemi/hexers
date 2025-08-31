@@ -1,11 +1,10 @@
 import { perlinNoise, simplexNoise, voronoiNoise, generateVoronoiPoints } from './noiseUtils'
 import { TEXTURE_CONFIG, TERRAIN_TYPES, TerrainType } from '../config/constants'
+import { getCachedNoiseValue } from './noiseCacheUtils'
 
 export type NoiseType = 'perlin' | 'simplex' | 'voronoi'
 
 const voronoiPoints = generateVoronoiPoints(200, 2000, 2000)
-
-const noiseCache = new Map<string, number>()
 
 export const getRawNoiseValue = (x: number, y: number, noiseType: NoiseType): number => {
   const scaledX = x * TEXTURE_CONFIG.NOISE_ZOOM
@@ -30,25 +29,11 @@ export const pixelateCoordinate = (coord: number, pixelSize: number): number => 
 }
 
 export const getPixelatedNoiseValue = (x: number, y: number, noiseType: NoiseType): number => {
-  const pixelSize = TEXTURE_CONFIG.PIXELATION_SIZE
-  const pixelX = pixelateCoordinate(x, pixelSize)
-  const pixelY = pixelateCoordinate(y, pixelSize)
-  
-  const cacheKey = `${noiseType}-${pixelX}-${pixelY}`
-  
-  if (noiseCache.has(cacheKey)) {
-    return noiseCache.get(cacheKey)!
-  }
-  
-  const noiseValue = getRawNoiseValue(pixelX, pixelY, noiseType)
-  const quantizedValue = Math.floor(noiseValue * 8) / 8
-  
-  noiseCache.set(cacheKey, quantizedValue)
-  return quantizedValue
+  return getCachedNoiseValue(x, y, noiseType)
 }
 
 export const clearNoiseCache = (): void => {
-  noiseCache.clear()
+  // Noise cache is now managed by noiseCacheUtils
 }
 
 export const getTerrainColor = (

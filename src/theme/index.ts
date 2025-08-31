@@ -2,7 +2,8 @@ export const palette = {
   background: {
     primary: '#000000',
     secondary: '#0f0f0f',
-    canvas: '#000000'
+    canvas: '#000000',
+    panel: '#1a1a1a'
   },
   hexagon: {
     fill: 'rgba(20, 20, 20, 0.8)',

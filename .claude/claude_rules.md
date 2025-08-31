@@ -3,6 +3,10 @@
 ## Memory
 This file serves as both the rules and memory for the Claude assistant working on this project.
 
+## Development Server
+- NEVER ask to run `yarn dev` or `npm run dev`
+- The user handles running the development server themselves
+
 ## Project Type
 - Turn-based web casual singleplayer game
 - React TypeScript frontend application
@@ -17,6 +21,9 @@ This file serves as both the rules and memory for the Claude assistant working o
 - Use TypeScript strict mode
 - Follow existing code patterns and conventions
 - Numerical/string constants affecting app behavior live in `/src/config/`
+- TSX files should have minimal logic - their purpose is React component structure
+- Complex logic should be extracted to utils functions
+- TSX files should primarily handle state, effects, and JSX rendering
 
 ## Canvas Requirements
 - Main canvas resolution: 1920x1080
@@ -37,6 +44,11 @@ This file serves as both the rules and memory for the Claude assistant working o
 - Canvas background: starry space (pitch black with rare pixel stars)
 - No animation for background stars
 - Hover effects: cursor:pointer and dark purple border on hexagon hover
+
+## Hexagon Rendering
+- Cell and border pixelization should maintain performance
+- Prioritize 60 FPS over visual detail
+- Use efficient rendering algorithms
 
 ## Performance Guidelines
 - TARGET_FPS config constant controls frame rate cap

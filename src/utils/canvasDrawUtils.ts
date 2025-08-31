@@ -24,14 +24,6 @@ export const drawStars = (ctx: CanvasRenderingContext2D, stars: Star[]): void =>
   }
 }
 
-export const drawFPS = (ctx: CanvasRenderingContext2D, fps: number): void => {
-  ctx.fillStyle = palette.ui.fps
-  ctx.font = `${typography.fontSize.xl} ${typography.fontFamily.primary}`
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'top'
-  ctx.fillText(`FPS: ${Math.round(fps)}`, 20, 20)
-}
-
 export const drawUnits = (
   ctx: CanvasRenderingContext2D,
   units: Unit[],

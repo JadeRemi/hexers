@@ -1,7 +1,8 @@
 export const CANVAS_CONFIG = {
   WIDTH: 1920,
   HEIGHT: 1080,
-  TARGET_FPS: 60
+  TARGET_FPS: 60,
+  PANEL_HEIGHT: 60
 } as const
 
 export const HEXAGON_CONFIG = {
@@ -47,7 +48,12 @@ export const TERRAIN_TYPES = {
 
 export type TerrainType = keyof typeof TERRAIN_TYPES
 
+export const UI_ICONS = {
+  FULLSCREEN: '⛶',
+  EXIT_FULLSCREEN: '⛶'
+} as const
+
 export const SPRITE_CONFIG = {
   UNIT_SCALE: 1.0,
-  UNIT_VERTICAL_OFFSET: -20
+  UNIT_VERTICAL_OFFSET: 0
 } as const
