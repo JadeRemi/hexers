@@ -1,16 +1,15 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { calculateCanvasSize } from '../utils/canvasUtils'
 import { generateHexGrid, createHexagonPath, isPointInHexagon, calculateHexSize, Hexagon } from '../utils/hexagonUtils'
-import { perlinNoise } from '../utils/noiseUtils'
-import { CANVAS_CONFIG, HEXAGON_CONFIG, STARS_CONFIG } from '../config/constants'
+import { renderHexagonTexture, NoiseType, clearNoiseCache } from '../utils/textureUtils'
+import { CANVAS_CONFIG, HEXAGON_CONFIG } from '../config/constants'
+import { drawPixelatedHexagonBorder } from '../utils/borderUtils'
+import { getTerrainForHexagon } from '../utils/terrainUtils'
 import { palette, typography } from '../theme'
+import { loadImage, SPRITES } from '../assets'
+import { Star, Unit, drawStars, drawFPS, drawUnits, drawButton, isPointInButton } from '../utils/canvasDrawUtils'
+import { generateStars } from '../utils/starUtils'
 import './Canvas.css'
-
-interface Star {
-  x: number
-  y: number
-  size: number
-}
 
 const Canvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -23,33 +22,15 @@ const Canvas: React.FC = () => {
   const starsRef = useRef<Star[]>([])
   const hexagonsRef = useRef<Hexagon[]>([])
   const hoveredHexRef = useRef<number | null>(null)
+  const wizardImageRef = useRef<HTMLImageElement | null>(null)
+  const unitsRef = useRef<Unit[]>([{ gridRow: 1, gridCol: 1, sprite: 'wizard1' }])
   
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ 
     width: CANVAS_CONFIG.WIDTH, 
     height: CANVAS_CONFIG.HEIGHT 
   })
-
-  const generateStars = useCallback(() => {
-    const stars: Star[] = []
-    for (let i = 0; i < STARS_CONFIG.STAR_COUNT; i++) {
-      const noise = perlinNoise(i * 0.1, i * 0.2)
-      const x = Math.random() * CANVAS_CONFIG.WIDTH
-      const y = Math.random() * CANVAS_CONFIG.HEIGHT
-      const size = STARS_CONFIG.MIN_SIZE + 
-        (Math.abs(noise) * (STARS_CONFIG.MAX_SIZE - STARS_CONFIG.MIN_SIZE))
-      stars.push({ x, y, size })
-    }
-    return stars
-  }, [])
-
-  const drawStars = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.fillStyle = palette.stars.color
-    for (const star of starsRef.current) {
-      ctx.beginPath()
-      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2)
-      ctx.fill()
-    }
-  }, [])
+  const [currentNoiseType, setCurrentNoiseType] = useState<NoiseType>('perlin')
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const drawHexagons = useCallback((ctx: CanvasRenderingContext2D) => {
     const hexSize = calculateHexSize(
@@ -63,14 +44,20 @@ const Canvas: React.FC = () => {
       const hex = hexagonsRef.current[i]
       const path = createHexagonPath(hex.x, hex.y, hexSize)
       
-      ctx.fillStyle = palette.hexagon.fill
-      ctx.fill(path)
+      ctx.save()
+      ctx.clip(path)
       
-      ctx.strokeStyle = i === hoveredHexRef.current 
+      const terrainType = getTerrainForHexagon(hex.gridRow, hex.gridCol)
+      
+      renderHexagonTexture(ctx, hex.x, hex.y, hexSize, currentNoiseType, terrainType)
+      
+      ctx.restore()
+      
+      // Draw pixelated border
+      const borderColor = i === hoveredHexRef.current 
         ? palette.hexagon.borderHover
         : palette.hexagon.borderDefault
-      ctx.lineWidth = HEXAGON_CONFIG.BORDER_WIDTH
-      ctx.stroke(path)
+      drawPixelatedHexagonBorder(ctx, hex.x, hex.y, hexSize, borderColor)
       
       ctx.fillStyle = palette.hexagon.text
       ctx.font = typography.fontSize.sm
@@ -78,15 +65,30 @@ const Canvas: React.FC = () => {
       ctx.textBaseline = 'middle'
       ctx.fillText(`${hex.gridRow},${hex.gridCol}`, hex.x, hex.y)
     }
-  }, [])
+  }, [currentNoiseType])
 
-  const drawFPS = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.fillStyle = palette.ui.fps
-    ctx.font = `${typography.fontSize.xl} ${typography.fontFamily.primary}`
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'top'
-    ctx.fillText(`FPS: ${Math.round(fpsRef.current)}`, 20, 20)
-  }, [])
+  const drawButtons = useCallback((ctx: CanvasRenderingContext2D) => {
+    const buttonWidth = 150
+    const buttonHeight = 40
+    const buttonSpacing = 10
+    const buttonX = CANVAS_CONFIG.WIDTH - buttonWidth - 20
+    
+    drawButton(ctx, {
+      x: buttonX,
+      y: 20,
+      width: buttonWidth,
+      height: buttonHeight,
+      text: `Noise: ${currentNoiseType}`
+    })
+    
+    drawButton(ctx, {
+      x: buttonX,
+      y: 20 + buttonHeight + buttonSpacing,
+      width: buttonWidth,
+      height: buttonHeight,
+      text: isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'
+    })
+  }, [currentNoiseType, isFullscreen])
 
   const render = useCallback((timestamp: number) => {
     const canvas = canvasRef.current
@@ -107,18 +109,79 @@ const Canvas: React.FC = () => {
         fpsUpdateTimeRef.current = timestamp
       }
 
+      ctx.imageSmoothingEnabled = false
       ctx.fillStyle = palette.background.canvas
       ctx.fillRect(0, 0, CANVAS_CONFIG.WIDTH, CANVAS_CONFIG.HEIGHT)
       
-      drawStars(ctx)
+      drawStars(ctx, starsRef.current)
       drawHexagons(ctx)
-      drawFPS(ctx)
+      
+      const hexSize = calculateHexSize(
+        HEXAGON_CONFIG.ROWS,
+        HEXAGON_CONFIG.CELL_GAP,
+        CANVAS_CONFIG.WIDTH,
+        CANVAS_CONFIG.HEIGHT
+      )
+      drawUnits(ctx, unitsRef.current, hexagonsRef.current, wizardImageRef.current, hexSize)
+      drawFPS(ctx, fpsRef.current)
+      drawButtons(ctx)
       
       lastFrameTimeRef.current = timestamp - (deltaTime % frameTime)
     }
 
     animationFrameRef.current = requestAnimationFrame(render)
-  }, [drawStars, drawHexagons, drawFPS])
+  }, [drawHexagons, drawButtons])
+
+  const toggleFullscreen = useCallback(() => {
+    const element = containerRef.current
+    if (!element) return
+    
+    if (!document.fullscreenElement) {
+      element.requestFullscreen().then(() => {
+        setIsFullscreen(true)
+      }).catch(err => {
+        console.error('Error entering fullscreen:', err)
+      })
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false)
+      }).catch(err => {
+        console.error('Error exiting fullscreen:', err)
+      })
+    }
+  }, [])
+
+  const handleCanvasClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = CANVAS_CONFIG.WIDTH / rect.width
+    const scaleY = CANVAS_CONFIG.HEIGHT / rect.height
+    const x = (event.clientX - rect.left) * scaleX
+    const y = (event.clientY - rect.top) * scaleY
+    
+    const buttonWidth = 150
+    const buttonHeight = 40
+    const buttonSpacing = 10
+    const buttonX = CANVAS_CONFIG.WIDTH - buttonWidth - 20
+    
+    // Check noise button
+    if (isPointInButton(x, y, buttonX, 20, buttonWidth, buttonHeight)) {
+      const noiseTypes: NoiseType[] = ['perlin', 'simplex', 'voronoi']
+      const currentIndex = noiseTypes.indexOf(currentNoiseType)
+      const nextIndex = (currentIndex + 1) % noiseTypes.length
+      clearNoiseCache()
+      setCurrentNoiseType(noiseTypes[nextIndex])
+      return
+    }
+    
+    // Check fullscreen button
+    const fullscreenButtonY = 20 + buttonHeight + buttonSpacing
+    if (isPointInButton(x, y, buttonX, fullscreenButtonY, buttonWidth, buttonHeight)) {
+      toggleFullscreen()
+    }
+  }, [currentNoiseType, toggleFullscreen])
 
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -152,6 +215,16 @@ const Canvas: React.FC = () => {
       hoveredHexRef.current = null
       canvas.style.cursor = 'default'
     }
+    
+    const buttonWidth = 150
+    const buttonHeight = 40
+    const buttonSpacing = 10
+    const buttonX = CANVAS_CONFIG.WIDTH - buttonWidth - 20
+    
+    if (isPointInButton(x, y, buttonX, 20, buttonWidth, buttonHeight) ||
+        isPointInButton(x, y, buttonX, 20 + buttonHeight + buttonSpacing, buttonWidth, buttonHeight)) {
+      canvas.style.cursor = 'pointer'
+    }
   }, [])
 
   const handleMouseLeave = useCallback(() => {
@@ -176,13 +249,24 @@ const Canvas: React.FC = () => {
       setCanvasSize(newSize)
     }
 
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+      handleResize()
+    }
+
     handleResize()
     window.addEventListener('resize', handleResize)
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
     
     return () => {
       window.removeEventListener('resize', handleResize)
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
   }, [])
+
+  useEffect(() => {
+    clearNoiseCache()
+  }, [currentNoiseType])
 
   useEffect(() => {
     starsRef.current = generateStars()
@@ -193,6 +277,10 @@ const Canvas: React.FC = () => {
       CANVAS_CONFIG.HEIGHT
     )
     
+    loadImage(SPRITES.wizards.wizard1.path).then(img => {
+      wizardImageRef.current = img
+    })
+    
     animationFrameRef.current = requestAnimationFrame(render)
     
     return () => {
@@ -200,7 +288,7 @@ const Canvas: React.FC = () => {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [generateStars, render])
+  }, [render])
 
   return (
     <div className="canvas-container" ref={containerRef}>
@@ -215,6 +303,7 @@ const Canvas: React.FC = () => {
         className="game-canvas"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onClick={handleCanvasClick}
       />
     </div>
   )
